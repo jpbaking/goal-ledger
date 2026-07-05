@@ -4,6 +4,7 @@
 # Bundles three independent kits into one install:
 #   - cline-rules       (required)  -> .clinerules\ core reasoning rules
 #   - compose-helper    (required)  -> compose-helper.ps1 + env + its rule/skill
+#     (both cline-rules and compose-helper delegate to their own installers)
 #   - lazyway-io-design (optional)  -> design system rule + skill (frontend projects)
 #
 # Usage (from your project root, PowerShell 5.1+ or pwsh):
@@ -29,9 +30,9 @@
 
     $BoilerplateRepo = 'jpbaking/lazyway-io-boilerplate'
 
-    $ClineRulesInstallUrl = 'https://raw.githubusercontent.com/jpbaking/cline-rules/main/install.ps1'
-    $ComposeHelperBase    = 'https://raw.githubusercontent.com/jpbaking/compose-helper/main'
-    $DesignBase           = 'https://raw.githubusercontent.com/jpbaking/lazyway-io-design/main'
+    $ClineRulesInstallUrl    = 'https://raw.githubusercontent.com/jpbaking/cline-rules/main/install.ps1'
+    $ComposeHelperInstallUrl = 'https://raw.githubusercontent.com/jpbaking/compose-helper/main/.install-helper/install.ps1'
+    $DesignBase              = 'https://raw.githubusercontent.com/jpbaking/lazyway-io-design/main'
 
     $TargetRoot = if ($env:BOILERPLATE_TARGET) { $env:BOILERPLATE_TARGET } else { (Get-Location).Path }
 
@@ -75,25 +76,16 @@
         Say ""
 
         # --- 2/3 compose-helper (required) -----------------------------------
-        Say "==> [2/3] compose-helper (required) -- script, env, rule, skill"
-
-        $ScriptPath = Join-Path $TargetRoot 'compose-helper.ps1'
-        Fetch "$ComposeHelperBase/compose-helper.ps1" $ScriptPath
-        Say "    compose-helper.ps1"
-
-        $EnvPath = Join-Path $TargetRoot 'compose-helper.env'
-        if (Test-Path $EnvPath) {
-            Say "    compose-helper.env -- already exists, not overwritten"
-        } else {
-            Fetch "$ComposeHelperBase/compose-helper.env.example" $EnvPath
-            Say "    compose-helper.env -- created from example"
+        Say "==> [2/3] compose-helper (required) -- delegating to its own installer"
+        # compose-helper's installer has no target-directory override -- it
+        # always installs into the current directory -- so switch into
+        # $TargetRoot for the duration of the call.
+        Push-Location $TargetRoot
+        try {
+            Invoke-Expression (Invoke-WebRequest -UseBasicParsing $ComposeHelperInstallUrl).Content
+        } finally {
+            Pop-Location
         }
-
-        Fetch "$ComposeHelperBase/.clinerules/compose-helper.md" (Join-Path $TargetRoot '.clinerules\compose-helper.md')
-        Say "    .clinerules\compose-helper.md"
-
-        Fetch "$ComposeHelperBase/.cline/skills/compose-helper/SKILL.md" (Join-Path $TargetRoot '.cline\skills\compose-helper\SKILL.md')
-        Say "    .cline\skills\compose-helper\SKILL.md"
         Say ""
 
         # --- 3/3 lazyway-io-design (optional) --------------------------------

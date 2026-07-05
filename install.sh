@@ -5,6 +5,7 @@
 # Bundles three independent kits into one install:
 #   - cline-rules       (required)  -> .clinerules/ core reasoning rules
 #   - compose-helper    (required)  -> compose-helper.sh + env + its rule/skill
+#     (both cline-rules and compose-helper delegate to their own installers)
 #   - lazyway-io-design (optional)  -> design system rule + skill (frontend projects)
 #
 # Usage (from your project root):
@@ -23,10 +24,9 @@
 #
 # What it does:
 #   - required kits are always installed/updated, no prompt
-#   - cline-rules install is delegated to its own installer (safe merge/renumber
-#     logic for .clinerules/ lives there, not duplicated here)
-#   - compose-helper's script + env + rule + skill are fetched directly; an
-#     existing compose-helper.env is never overwritten
+#   - cline-rules and compose-helper installs are both delegated to their own
+#     installers (safe merge/renumber logic for .clinerules/, and env-file key
+#     diffing for compose-helper.env, live there — not duplicated here)
 #   - the design kit is asked about unless WITH_DESIGN is set
 #   - this boilerplate's own README.md and LICENSE (and this installer itself)
 #     are never written into the target project — they cover this repo, not yours
@@ -37,8 +37,8 @@ BOILERPLATE_REPO="jpbaking/lazyway-io-boilerplate"
 BOILERPLATE_REF="${LAZYWAY_BOILERPLATE_REF:-main}"
 
 CLINE_RULES_INSTALL_URL="https://raw.githubusercontent.com/jpbaking/cline-rules/main/install.sh"
+COMPOSE_HELPER_INSTALL_URL="https://raw.githubusercontent.com/jpbaking/compose-helper/main/.install-helper/install.sh"
 
-COMPOSE_HELPER_BASE="https://raw.githubusercontent.com/jpbaking/compose-helper/main"
 DESIGN_BASE="https://raw.githubusercontent.com/jpbaking/lazyway-io-design/main"
 
 TARGET_ROOT="${1:-.}"
@@ -91,27 +91,10 @@ fi
 say ""
 
 # --- 2/3 compose-helper (required) ------------------------------------------
-say "==> [2/3] compose-helper (required) — script, env, rule, skill"
-
-mkdir -p "$TARGET_ROOT/.clinerules" "$TARGET_ROOT/.cline/skills/compose-helper"
-
-fetch "$COMPOSE_HELPER_BASE/compose-helper.sh" "$TARGET_ROOT/compose-helper.sh"
-chmod +x "$TARGET_ROOT/compose-helper.sh"
-say "    compose-helper.sh"
-
-if [ -f "$TARGET_ROOT/compose-helper.env" ]; then
-  say "    compose-helper.env — already exists, not overwritten"
-else
-  fetch "$COMPOSE_HELPER_BASE/compose-helper.env.example" "$TARGET_ROOT/compose-helper.env"
-  say "    compose-helper.env — created from example"
+say "==> [2/3] compose-helper (required) — delegating to its own installer"
+if ! ( cd "$TARGET_ROOT" && curl -fsSL "$COMPOSE_HELPER_INSTALL_URL" 2>/dev/null | bash ); then
+  die "compose-helper install failed. See https://github.com/jpbaking/compose-helper"
 fi
-
-fetch "$COMPOSE_HELPER_BASE/.clinerules/compose-helper.md" "$TARGET_ROOT/.clinerules/compose-helper.md"
-say "    .clinerules/compose-helper.md"
-
-fetch "$COMPOSE_HELPER_BASE/.cline/skills/compose-helper/SKILL.md" \
-  "$TARGET_ROOT/.cline/skills/compose-helper/SKILL.md"
-say "    .cline/skills/compose-helper/SKILL.md"
 say ""
 
 # --- 3/3 lazyway-io-design (optional) ---------------------------------------
