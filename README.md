@@ -14,8 +14,8 @@ bootstrap or retrofit a project with this kit.
 
 | Component | Required? | What it drops in your project | Upstream |
 |---|---|---|---|
-| **cline-rules** | Always | `.clinerules/00-core-reasoning-rules.md`, `01-dox-framework.md`, `02-plan-execute-resume.md` — structured reasoning, the [DOX](https://github.com/jpbaking/dox) `AGENTS.md` doc framework, and crash-safe multi-phase task plans | [jpbaking/cline-rules](https://github.com/jpbaking/cline-rules) |
-| **compose-helper** | Always | `compose-helper.sh` (+ `.ps1` on Windows) and `compose-helper.env`, plus `.clinerules/compose-helper.md` and `.cline/skills/compose-helper/` teaching agents to use it safely | [jpbaking/compose-helper](https://github.com/jpbaking/compose-helper) |
+| **cline-rules** | Core always; DOX and plan-execute are optional sub-components, each asked about (default No) by cline-rules' own installer | `.clinerules/00-core-reasoning-rules.md` (always) — structured reasoning; optionally `dox.md` + 5 `/dox-*` skills (the [DOX](https://github.com/jpbaking/dox) `AGENTS.md` doc framework) and/or `plan-execute.md` + `/plan-execute` skill (crash-safe multi-phase task plans) | [jpbaking/cline-rules](https://github.com/jpbaking/cline-rules) |
+| **compose-helper** | Script + env always; its Cline rule/skill are asked about separately (default No) by compose-helper's own installer | `compose-helper.sh` (+ `.ps1` on Windows) and `compose-helper.env`, plus — if accepted — `.clinerules/compose-helper.md` and `.cline/skills/compose-helper/` teaching agents to use it safely | [jpbaking/compose-helper](https://github.com/jpbaking/compose-helper) |
 | **lazyway-io-design** | Optional — webapps with a frontend | `.clinerules/lazyway-io-design.md` and `.cline/skills/lazyway-io-design/` (rule + skill only; the skill fetches the actual `design/` CSS/JS kit into the project on first UI task) | [jpbaking/lazyway-io-design](https://github.com/jpbaking/lazyway-io-design) |
 
 None of this is reimplemented here — the installer fetches the current version of
@@ -63,9 +63,16 @@ irm https://raw.githubusercontent.com/jpbaking/lazyway-io-boilerplate/main/insta
 
 The installer:
 
-- always installs cline-rules and compose-helper (no prompt — these are the
-  "always" row above), and asks once whether to also install the optional
-  design-system rule + skill (default **No**)
+- always runs cline-rules and compose-helper's own installers (no prompt at
+  this top level — these are the "always" row above), and asks once whether
+  to also install the optional design-system rule + skill (default **No**)
+- delegates entirely to each upstream project's own installer, so their own
+  prompts still apply: cline-rules' installer separately asks about its DOX
+  and plan-execute sub-components (default No each; already-installed ones
+  update without asking), and compose-helper's installer separately asks
+  whether to install its Cline rule/skill (default No) — this boilerplate's
+  `ASSUME_YES=1` covers only its own design-kit prompt, see below for how each
+  delegate's non-interactive default behaves
 - never overwrites an existing `compose-helper.env` (only reports which keys
   the latest example has that yours doesn't)
 - delegates the `.clinerules/` merge itself to cline-rules' own installer,
@@ -78,8 +85,9 @@ Options (environment variables):
 
 | Variable | Effect |
 |---|---|
-| `ASSUME_YES=1` | Accept all prompts non-interactively (CI-safe) |
+| `ASSUME_YES=1` | Accept this installer's own prompt (the design kit) non-interactively; with no terminal available, every delegate prompt defaults to No regardless |
 | `WITH_DESIGN=1` / `WITH_DESIGN=0` | Install / skip the design kit without being asked |
+| `LAZYWAY_BOILERPLATE_REF=<ref>` / `$env:LAZYWAY_BOILERPLATE_REF` | Cosmetic — labels the installer's "source:" line with a ref other than `main` (set this if you've fetched the installer itself from that ref) |
 | target dir as `sh -s -- /path`, or `$env:BOILERPLATE_TARGET` on Windows | Install into a directory other than the current one |
 
 ```sh
@@ -112,10 +120,11 @@ similar), a new project, or an existing one:
 4. Once installed, the `.clinerules/` files are the authoritative, always-loaded
    instructions — don't re-derive their content from this README; read them
    directly if you need their exact rules. In short: `00-core-reasoning-rules.md`
-   governs how you reason and verify your own work, `01-dox-framework.md`
-   governs `AGENTS.md` docs, `02-plan-execute-resume.md` governs multi-phase
-   task plans, `compose-helper.md` governs any `docker compose` operation, and
-   `lazyway-io-design.md` (if installed) governs any UI/styling work.
+   governs how you reason and verify your own work; `dox.md` (if installed)
+   governs `AGENTS.md` docs; `plan-execute.md` (if installed) governs
+   multi-phase task plans; `compose-helper.md` (if installed) governs any
+   `docker compose` operation; and `lazyway-io-design.md` (if installed)
+   governs any UI/styling work.
 5. Never invent or retype the content of any installed file from memory if it
    looks stale or wrong — re-run the installer (or re-download the specific
    file from its upstream repo) instead of guessing.

@@ -29,6 +29,7 @@
     $ProgressPreference    = 'SilentlyContinue'   # WinPS 5.1: progress bar slows downloads badly
 
     $BoilerplateRepo = 'jpbaking/lazyway-io-boilerplate'
+    $BoilerplateRef  = if ($env:LAZYWAY_BOILERPLATE_REF) { $env:LAZYWAY_BOILERPLATE_REF } else { 'main' }
 
     $ClineRulesInstallUrl    = 'https://raw.githubusercontent.com/jpbaking/cline-rules/main/install.ps1'
     $ComposeHelperInstallUrl = 'https://raw.githubusercontent.com/jpbaking/compose-helper/main/.install-helper/install.ps1'
@@ -65,14 +66,18 @@
         if (-not (Test-Path $TargetRoot)) { throw "Target directory '$TargetRoot' does not exist." }
 
         Say "jpbaking's boilerplate kit -- installer"
-        Say "source: github.com/$BoilerplateRepo@main"
+        Say "source: github.com/$BoilerplateRepo@$BoilerplateRef"
         Say "target: $TargetRoot"
         Say ""
 
         # --- 1/3 cline-rules (required) -------------------------------------
         Say "==> [1/3] cline-rules (required) -- delegating to its own installer"
         $env:CLINE_RULES_TARGET = $TargetRoot
-        Invoke-Expression (Invoke-WebRequest -UseBasicParsing $ClineRulesInstallUrl).Content
+        try {
+            Invoke-Expression (Invoke-WebRequest -UseBasicParsing $ClineRulesInstallUrl).Content
+        } catch {
+            throw "cline-rules install failed. See https://github.com/jpbaking/cline-rules ($($_.Exception.Message))"
+        }
         Say ""
 
         # --- 2/3 compose-helper (required) -----------------------------------
@@ -82,7 +87,11 @@
         # $TargetRoot for the duration of the call.
         Push-Location $TargetRoot
         try {
-            Invoke-Expression (Invoke-WebRequest -UseBasicParsing $ComposeHelperInstallUrl).Content
+            try {
+                Invoke-Expression (Invoke-WebRequest -UseBasicParsing $ComposeHelperInstallUrl).Content
+            } catch {
+                throw "compose-helper install failed. See https://github.com/jpbaking/compose-helper ($($_.Exception.Message))"
+            }
         } finally {
             Pop-Location
         }
