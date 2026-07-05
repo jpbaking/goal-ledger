@@ -1,21 +1,24 @@
+---
+name: plan-execute
+description: >-
+  Persistent on-disk task plans for multi-phase work: a MASTER-PLAN.md plus
+  phase-NNNN.md files in .tmp-agent-scratch/, an autonomous execution loop
+  with mechanical status markers, and crash-safe resume. Use when a task
+  needs 2+ distinct phases or roughly 5+ sub-tasks, will likely span more
+  than one session, or the user says "plan", "master plan", "resume", or
+  asks to abandon/reset the plan. ALWAYS load this skill when
+  .tmp-agent-scratch/MASTER-PLAN.md exists with a Plan status other than
+  done, and RE-LOAD it after any context compaction while a plan is
+  executing.
+---
+
 # PLAN → EXECUTE → RESUME — persistent task plans
 
-This rule gives multi-phase tasks a plan that lives on disk, executes autonomously, and survives crashes. The plan is a folder of markdown files with mechanical status markers; any new session can read them and continue exactly where the last one stopped.
+This skill gives multi-phase tasks a plan that lives on disk, executes autonomously, and survives crashes. The plan is a folder of markdown files with mechanical status markers; any new session can read them and continue exactly where the last one stopped.
 
-This rule is self-contained, and composes with the other rule files when they are present: if `00-core-reasoning-rules.md` is active, your `<steps>` block just points at the master plan file (do not duplicate the plan in chat); if `01-dox-framework.md` is active, every file edit during execution still goes through the DOX Gate.
+This skill is self-contained, and composes with the rule files when they are present: if `00-core-reasoning-rules.md` is active, your `<steps>` block just points at the master plan file (do not duplicate the plan in chat); if the `dox.md` rule is active, every file edit during execution still follows its DOX contract.
 
-## 0. When this rule applies
-
-First, ALWAYS check for an unfinished plan (section 5) — that check runs at the start of every task, even trivial ones.
-
-Then use this rule when ANY of these is true:
-
-- The task needs 2 or more distinct phases of work.
-- The task has roughly 5 or more sub-tasks.
-- The task will likely span more than one session, or the user may interrupt it.
-- The user says "plan", "master plan", "resume", or names the scratch folder.
-
-Below that size, skip this rule and plan in your reply as usual (with the `<steps>` block from `00-core-reasoning-rules.md`, if that rule is active). When unsure, use this rule — a small plan costs little; a lost big task costs everything.
+Because this text lives in the conversation (not in the system prompt), a context compaction can erase it. **After ANY compaction or session restart while a plan is executing: re-read MASTER-PLAN.md and the active phase file, then re-load this skill before continuing.** The plan files on disk always win over your memory of them.
 
 ## 1. The scratch folder
 
@@ -24,7 +27,7 @@ Below that size, skip this rule and plan in your reply as usual (with the `<step
 - **Contents:** exactly one `MASTER-PLAN.md` plus one `phase-NNNN.md` per phase (zero-padded: `phase-0001.md`, `phase-0002.md`, ...).
 - **One plan at a time.** If a previous plan exists and its Plan status is `done`, you may delete those files and start fresh. If it is NOT done, never overwrite it — go to section 5, or, if the user wants to drop it, section 7.
 - Never delete the scratch folder on your own initiative — deletion happens only through the Abandon procedure (section 7), at the user's explicit request. Never list `.tmp-agent-scratch/` in any `AGENTS.md` or Child DOX Index — it is temporary and gitignored; DOX Closeout does not apply to files inside it.
-- **Single writer.** Only the main agent session writes plan files. Cline subagents are read-only by design and cannot update a status — never delegate a plan edit or status flip to one. Using subagents for research inside a sub-task is fine and encouraged: the `[ongoing]` marker is already on disk before you dispatch them, and YOU record their findings in the phase Log when they return. **If you are a read-only subagent:** ignore this rule entirely — do not check for, read, resume, or report on any plan; just perform your assigned research and return your findings.
+- **Single writer.** Only the main agent session writes plan files. Cline subagents are read-only by design and cannot update a status — never delegate a plan edit or status flip to one. Using subagents for research inside a sub-task is fine and encouraged: the `[ongoing]` marker is already on disk before you dispatch them, and YOU record their findings in the phase Log when they return. **If you are a read-only subagent:** ignore this skill entirely — do not check for, read, resume, or report on any plan; just perform your assigned research and return your findings.
 
 ## 2. Templates and status markers — copy exactly
 
@@ -103,7 +106,7 @@ Loop:
 3. Mark the phase `[ongoing]` (phase file Status line AND master mirror). Log `started` in the phase Log.
 4. For each sub-task in order:
    a. Flip it to `[ongoing]`. Save the file.
-   b. Do the work. Any other active rules still apply here — e.g. `00`'s read-before-edit and verification discipline, `01`'s DOX chain.
+   b. Do the work. Any other active rules still apply here — e.g. `00`'s read-before-edit and verification discipline, the DOX chain from `dox.md`.
    c. Run its "done when" check.
    d. Flip it to `[done]`, or `[skipped] — reason: ...`, or — after 2 failed attempts on the same sub-task — `[needs-human] — reason: <exact error/question>`. Save. Append one Log line saying what happened.
    e. A `[needs-human]` sub-task does NOT stop the loop: continue with the next sub-task if it does not depend on the failed one; otherwise close the phase now (step 5).
@@ -117,7 +120,7 @@ Loop:
    b. Check your context window usage (shown in environment details). Below roughly half: skip this step entirely and go to step 7. At roughly half or more: compact now.
    c. Before compacting, do a **pre-compaction flush** — treat the compaction as a planned crash: anything you still need that is NOT yet in the plan files (a decision made, a gotcha found, a port, a path, a command that works) gets appended to the phase Log or master Log first. After compaction you must be able to continue from the plan files plus the summary alone.
    d. Compact using Cline's context condensing (the same summarization Auto Compact / `/smol` uses).
-   e. Immediately after compacting, re-anchor exactly like a resume: re-read MASTER-PLAN.md and the next phase file before doing anything else. Wherever the summary and the plan files disagree, the files win.
+   e. Immediately after compacting, re-anchor exactly like a resume: **re-load this plan-execute skill** (the compaction summary will not preserve its text), then re-read MASTER-PLAN.md and the next phase file before doing anything else. Wherever the summary and the plan files disagree, the files win.
    f. Never compact mid-phase or mid-sub-task by choice — boundaries only.
 7. Go back to step 1. Do NOT stop between phases, do not ask "shall I continue?", do not summarize progress mid-run. Stop ONLY when one of these is true:
    - **All phases are terminal, none needs-human** → set Plan status to `done`. Report.
@@ -126,7 +129,7 @@ Loop:
 
 ## 5. Resume — new session or after a crash
 
-At the start of EVERY task, before planning anything: check whether `<project root>/.tmp-agent-scratch/MASTER-PLAN.md` exists with Plan status not `done`.
+The always-on `plan-execute.md` rule triggers this: at the start of every task it checks whether `<project root>/.tmp-agent-scratch/MASTER-PLAN.md` exists with Plan status not `done`, and loads this skill when it does. Once loaded:
 
 - If the user asked to continue/resume, or the new request matches the plan's Goal: resume without asking.
 - If the plan is `blocked-on-human` and the user's message answers its questions: record the answers in the affected items' Log, flip those items back to `[todo]`, set Plan status to `executing`, resume.

@@ -34,7 +34,7 @@ How this maps to Cline:
   the top of the message, then make the tool call.
 - If you are in PLAN MODE: produce `<understand>`, `<plan>`, and `<steps>`
   there. In ACT MODE, restate `<steps>` in one line and start working.
-- `<final>` content goes inside `attempt_completion`. Never call
+- Your final summary (section 6) goes inside `attempt_completion`. Never call
   `attempt_completion` before `<review>` is written and passing.
 
 Keep each reasoning block SHORT: 3–8 bullet points or lines. Long rambling
@@ -55,6 +55,9 @@ Inside `<understand>`:
    `search_files`, `list_files`. Only if a critical unknown cannot be resolved
    with tools, use `ask_followup_question` — never invent the answer.
 4. State the definition of done: "This task is complete when ___."
+5. Check the available skills: if a skill's description matches this task,
+   load it NOW — before `<plan>`. Plan with the skill's procedure in context,
+   not from memory of it.
 
 Rule: if your one-sentence restatement does not match the user's request,
 re-read the request and rewrite it. Do not proceed on a guess.
@@ -197,6 +200,11 @@ These override everything else:
   summarize, commit, move on.
 - **One task at a time.** If the request contains multiple tasks, list them in
   `<understand>` and do them one at a time, each with its own steps and review.
+- **After any context compaction:** before the next tool call, restate in one
+  line the task, the current `<steps>` list, and which step you are on. If you
+  cannot reconstruct them from the summary, re-derive `<understand>` and
+  `<steps>` from the original request — never continue on momentum from a
+  summary.
 - **When truly stuck** (2 plan revisions exhausted): report exactly where you
   are stuck, what you tried, and the single most useful piece of missing
   information. Use `ask_followup_question` if the user can unblock you;
