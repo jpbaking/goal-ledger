@@ -7,6 +7,7 @@ Before your first edit to any file, find that file's DOX root: walk up from the 
 **Governed** — the file has a DOX root above it:
 
 - COMPLY fully with that root. Before editing, follow its "Read Before Editing" (walk the AGENTS.md chain from that DOX root down to the file). After meaningful changes, follow "Update After Editing" and "Closeout".
+- Gitignored scratch/temp folders (e.g. `.tmp-agent-scratch/`) are outside DOX: never document them, never list them in any Child DOX Index, and Closeout does not apply to files inside them.
 - If that root's Child DOX Index still reads "Not yet indexed", also suggest running `/dox-init` there — but still comply with the rules that are present.
 
 **Ungoverned** — no ancestor AGENTS.md carries the DOX rules:

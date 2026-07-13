@@ -19,7 +19,7 @@ Download `https://raw.githubusercontent.com/jpbaking/dox/main/AGENTS.md` to a te
 
 The framework version is the line starting `DOX v` directly under the `# DOX framework` heading.
 
-- Same version in both files: report "already on the latest version", delete the temp file, STOP.
+- Same version in both files: report "already on the latest version", run Step 6 (the packaged template may still be older), delete the temp file, STOP.
 - The project file has no `DOX v` line: it predates versioning — continue.
 - Different versions: continue.
 
@@ -29,7 +29,7 @@ The framework version is the line starting `DOX v` directly under the `# DOX fra
 2. Start from the NEW framework text in full.
 3. In the new text, replace the placeholder body of each live section (`## User Preferences`, `## Feature Map`, `## Child DOX Index`) with the project's existing body — but keep the new placeholder wherever the project's section was itself still a placeholder or missing.
 4. Append the project-only sections from step 1 at the end, unchanged and in their original order.
-5. Write the result as the root AGENTS.md and delete the temp file.
+5. Write the result as the root AGENTS.md. Keep the temp file — Step 6 still needs the pristine framework text; delete it only after Step 6.
 6. If any piece of the old file does not clearly belong to either the framework or a project section, KEEP it and list it for the user — never silently drop text.
 
 ## Step 4 — Nested roots stay untouched
@@ -40,6 +40,10 @@ Never upgrade a nested root (a folder whose own AGENTS.md carries the full DOX r
 
 New rules usually create new mechanical debt (new required sections, new placeholders). Run the `/dox-fix` procedure now to bring the doc tree up to the new rules.
 
-## Step 6 — Report
+## Step 6 — Refresh the packaged template
 
-State: old version → new version, which live sections were carried over, which project-only sections were kept, any text you kept because you could not classify it, nested roots left on older versions, and what the `/dox-fix` pass changed.
+A `dox-init` skill may be installed for one or more agent harnesses, each packaging an offline copy of the framework. For each of `.cline/skills/`, `.claude/skills/`, and `.agents/skills/` that contains `dox-init/templates/AGENTS.md`, overwrite that file with the NEW framework text in full (the pristine framework from Step 1 — placeholders and all, never the merged project file). Skip silently whichever does not exist.
+
+## Step 7 — Report
+
+State: old version → new version, which live sections were carried over, which project-only sections were kept, any text you kept because you could not classify it, nested roots left on older versions, whether the packaged template was refreshed, and what the `/dox-fix` pass changed.

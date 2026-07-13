@@ -11,10 +11,12 @@ Build this project's DOX tree: one AGENTS.md per real boundary, from the root do
 
 1. Open `AGENTS.md` in the project root.
 2. If it exists and contains the heading `# DOX framework`, the framework is present — go to Step 1.
-3. If it is missing or has no DOX rules, fetch the framework from
-   `https://raw.githubusercontent.com/jpbaking/dox/main/AGENTS.md` and save it as `AGENTS.md` in the project root.
-   - If a root AGENTS.md already existed with other content, keep that content: place the framework text at the top, and move the old content below it under a heading `## Project rules (imported)`. Tell the user to review that section.
-   - If the fetch fails, STOP. Ask the user to copy `AGENTS.md` from https://github.com/jpbaking/dox into the project root, then run `/dox-init` again.
+3. If it is missing or has no DOX rules, install the framework as `AGENTS.md` in the project root, taking its text from the first of these sources that works:
+   1. **Packaged template (preferred — no network needed):** copy `templates/AGENTS.md` from this skill's own folder (the folder containing this SKILL.md).
+   2. **Fetch fallback:** if the packaged template is missing, fetch `https://raw.githubusercontent.com/jpbaking/dox/main/AGENTS.md`.
+   3. If both fail, STOP. Ask the user to copy `AGENTS.md` from https://github.com/jpbaking/dox into the project root, then run `/dox-init` again.
+
+   Either way: if a root AGENTS.md already existed with other content, keep that content — place the framework text at the top, and move the old content below it under a heading `## Project rules (imported)`. Tell the user to review that section. (The packaged template may lag the latest release; `/dox-upgrade` brings it current later.)
 4. Read the whole root AGENTS.md now. Every step below follows its rules exactly.
 
 ## Step 1 — Decide the mode
