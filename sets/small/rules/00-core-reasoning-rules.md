@@ -204,7 +204,9 @@ These override everything else:
   line the task, the current `<steps>` list, and which step you are on. If you
   cannot reconstruct them from the summary, re-derive `<understand>` and
   `<steps>` from the original request — never continue on momentum from a
-  summary.
+  summary. Exception: if another active rule defines its own post-compaction
+  recovery procedure (e.g. resuming an on-disk plan from its files), follow
+  that procedure — it satisfies this rule; do not do both.
 - **When truly stuck** (2 plan revisions exhausted): report exactly where you
   are stuck, what you tried, and the single most useful piece of missing
   information. Use `ask_followup_question` if the user can unblock you;
