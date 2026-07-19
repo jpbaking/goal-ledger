@@ -224,6 +224,18 @@ class PowerShellInstallerTests(unittest.TestCase):
                 candidates.append(executable)
         return candidates
 
+    def run_installer(self, executable, target, **env_overrides):
+        env = installer_environment(**env_overrides)
+        env["GOAL_LEDGER_TARGET"] = str(target)
+        return subprocess.run(
+            [executable, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "install.ps1")],
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
     def test_preserves_utf8_and_copies_complete_skill(self):
         powershells = self.powershells()
         if not powershells:
@@ -234,16 +246,7 @@ class PowerShellInstallerTests(unittest.TestCase):
                 agents = target / "AGENTS.md"
                 original = "# Existing — café\r\n".encode("utf-8")
                 agents.write_bytes(original)
-                env = installer_environment(WITH_CLINE="1")
-                env["GOAL_LEDGER_TARGET"] = str(target)
-                result = subprocess.run(
-                    [executable, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "install.ps1")],
-                    env=env,
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    check=False,
-                )
+                result = self.run_installer(executable, target, WITH_CLINE="1")
                 self.assertEqual(result.returncode, 0, result.stdout)
                 installed = agents.read_bytes()
                 self.assertFalse(installed.startswith(b"\xef\xbb\xbf"))
@@ -251,6 +254,28 @@ class PowerShellInstallerTests(unittest.TestCase):
                 self.assertTrue(
                     (target / ".agents" / "skills" / "goal-ledger" / "scripts" / "validate_goal_ledger.py").is_file()
                 )
+
+    def test_invalid_source_exits_nonzero_without_modifying_target(self):
+        powershells = self.powershells()
+        if not powershells:
+            self.skipTest("PowerShell is unavailable")
+        for executable in powershells:
+            with self.subTest(executable=executable), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory)
+                target = fixture / "target"
+                source = fixture / "invalid-source"
+                target.mkdir()
+                source.mkdir()
+                sentinel = target / "sentinel.txt"
+                sentinel.write_text("preserve", encoding="utf-8")
+
+                result = self.run_installer(
+                    executable, target, WITH_CLINE="1", GOAL_LEDGER_SOURCE=str(source)
+                )
+
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve")
+                self.assertFalse((target / ".agents").exists())
 
 
 if __name__ == "__main__":

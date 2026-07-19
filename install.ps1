@@ -10,6 +10,7 @@
     $TargetRoot = if ($env:GOAL_LEDGER_TARGET) { $env:GOAL_LEDGER_TARGET } else { (Get-Location).Path }
     $StagingRoot = $null
     $SourceRoot = $null
+    $Failure = $null
 
     function Say([string]$Message) { Write-Host $Message }
 
@@ -136,12 +137,12 @@
     }
 
     function Validate-Source {
-        $Rule = Join-Path $SourceRoot 'rules\goal-ledger.md'
+        $Rule = Join-Path $SourceRoot 'rules/goal-ledger.md'
         if (-not (Test-Path -LiteralPath $Rule -PathType Leaf)) { throw 'Source is missing rules/goal-ledger.md.' }
-        $Validator = Join-Path $SourceRoot 'skills\goal-ledger\scripts\validate_goal_ledger.py'
+        $Validator = Join-Path $SourceRoot 'skills/goal-ledger/scripts/validate_goal_ledger.py'
         if (-not (Test-Path -LiteralPath $Validator -PathType Leaf)) { throw 'Source is missing the Goal Ledger validator script.' }
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            $SkillFile = Join-Path $SourceRoot "skills\$Skill\SKILL.md"
+            $SkillFile = Join-Path $SourceRoot "skills/$Skill/SKILL.md"
             if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) { throw "Source is missing skills/$Skill/SKILL.md." }
             $Text = [System.IO.File]::ReadAllText($SkillFile)
             if ($Text -notmatch "(?m)^name:\s*$([regex]::Escape($Skill))\s*$") { throw "Skill name does not match directory '$Skill'." }
@@ -188,57 +189,57 @@
     }
 
     function Install-Rule([string]$Destination) {
-        Install-File (Join-Path $SourceRoot 'rules\goal-ledger.md') "$Destination\goal-ledger.md"
+        Install-File (Join-Path $SourceRoot 'rules/goal-ledger.md') "$Destination/goal-ledger.md"
     }
 
     function Install-Skills([string]$Destination) {
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            Install-Tree (Join-Path $SourceRoot "skills\$Skill") "$Destination\$Skill"
+            Install-Tree (Join-Path $SourceRoot "skills/$Skill") "$Destination/$Skill"
         }
     }
 
     function Test-LegacyActivePlan {
-        $LegacyPlan = Join-Path $TargetRoot '.tmp-agent-scratch\MASTER-PLAN.md'
+        $LegacyPlan = Join-Path $TargetRoot '.tmp-agent-scratch/MASTER-PLAN.md'
         if (-not (Test-Path -LiteralPath $LegacyPlan)) { return }
         $Document = Get-TextDocument $LegacyPlan
         $StatusLine = $Document.Text -split '\r?\n' | Where-Object { $_ -like '- Plan status: *' } | Select-Object -First 1
         $Status = if ($StatusLine) { $StatusLine.Substring(15) } else { 'unknown' }
         if ($Status -ne 'done') {
-            throw "An unfinished legacy MASTER-PLAN exists in .tmp-agent-scratch\ (status: $Status). Resume, finish, abandon, or migrate it before installing; no files were changed."
+            throw "An unfinished legacy MASTER-PLAN exists in .tmp-agent-scratch/ (status: $Status). Resume, finish, abandon, or migrate it before installing; no files were changed."
         }
-        Say 'NOTE: completed legacy .tmp-agent-scratch\ left untouched.'
+        Say 'NOTE: completed legacy .tmp-agent-scratch/ left untouched.'
     }
 
     function Inspect-SameNamedArtifacts {
-        foreach ($Path in '.agents\rules\master-plan.md', '.claude\rules\master-plan.md', '.clinerules\master-plan.md',
-                          '.agents\skills\master-plan', '.agents\skills\master-plan-resume',
-                          '.agents\skills\master-plan-status', '.agents\skills\master-plan-clear',
-                          '.claude\skills\master-plan', '.claude\skills\master-plan-resume',
-                          '.claude\skills\master-plan-status', '.claude\skills\master-plan-clear',
-                          '.cline\skills\master-plan', '.cline\skills\master-plan-resume',
-                          '.cline\skills\master-plan-status', '.cline\skills\master-plan-clear',
-                          '.claude\commands\master-plan.md', '.claude\commands\master-plan-resume.md',
-                          '.claude\commands\master-plan-status.md', '.claude\commands\master-plan-clear.md',
-                          '.clinerules\workflows\master-plan.md', '.clinerules\workflows\master-plan-resume.md',
-                          '.clinerules\workflows\master-plan-status.md', '.clinerules\workflows\master-plan-clear.md') {
+        foreach ($Path in '.agents/rules/master-plan.md', '.claude/rules/master-plan.md', '.clinerules/master-plan.md',
+                          '.agents/skills/master-plan', '.agents/skills/master-plan-resume',
+                          '.agents/skills/master-plan-status', '.agents/skills/master-plan-clear',
+                          '.claude/skills/master-plan', '.claude/skills/master-plan-resume',
+                          '.claude/skills/master-plan-status', '.claude/skills/master-plan-clear',
+                          '.cline/skills/master-plan', '.cline/skills/master-plan-resume',
+                          '.cline/skills/master-plan-status', '.cline/skills/master-plan-clear',
+                          '.claude/commands/master-plan.md', '.claude/commands/master-plan-resume.md',
+                          '.claude/commands/master-plan-status.md', '.claude/commands/master-plan-clear.md',
+                          '.clinerules/workflows/master-plan.md', '.clinerules/workflows/master-plan-resume.md',
+                          '.clinerules/workflows/master-plan-status.md', '.clinerules/workflows/master-plan-clear.md') {
             if (Test-Path -LiteralPath (Join-Path $TargetRoot $Path)) {
                 Say "NOTE: existing $Path is not owned by this installer and will be left untouched."
             }
         }
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
             foreach ($Root in '.agents', '.claude') {
-                $Destination = "$Root\skills\$Skill"
+                $Destination = "$Root/skills/$Skill"
                 if (Test-Path -LiteralPath (Join-Path $TargetRoot $Destination)) {
                     Say "NOTE: existing $Destination is a same-named installation destination and will be refreshed if selected."
                 }
             }
-            $Duplicate = ".cline\skills\$Skill"
+            $Duplicate = ".cline/skills/$Skill"
             if (Test-Path -LiteralPath (Join-Path $TargetRoot $Duplicate)) {
-                Say "WARNING: existing $Duplicate is left untouched and may duplicate .agents\skills\$Skill in Cline."
+                Say "WARNING: existing $Duplicate is left untouched and may duplicate .agents/skills/$Skill in Cline."
             }
         }
         foreach ($Root in '.agents', '.claude') {
-            $Destination = "$Root\rules\goal-ledger.md"
+            $Destination = "$Root/rules/goal-ledger.md"
             if (Test-Path -LiteralPath (Join-Path $TargetRoot $Destination)) {
                 Say "NOTE: existing $Destination is a same-named installation destination and will be refreshed if selected."
             }
@@ -248,7 +249,7 @@
     function Inspect-GlobalCollisions {
         if (-not $HOME) { return }
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            foreach ($Root in '.agents\skills', '.cline\skills', '.claude\skills', '.gemini\skills', '.gemini\config\skills') {
+            foreach ($Root in '.agents/skills', '.cline/skills', '.claude/skills', '.gemini/skills', '.gemini/config/skills') {
                 $Path = Join-Path (Join-Path $HOME $Root) $Skill
                 if (Test-Path -LiteralPath $Path) {
                     Say "WARNING: global $Path may shadow or duplicate the project skill; verify the selected harness resolves the project adapter."
@@ -296,8 +297,8 @@
     function Verify-OverlappingSkillCopies {
         if (-not ($ClineOn -and $ClaudeOn)) { return }
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            $AgentsSkill = Join-Path $TargetRoot ".agents\skills\$Skill"
-            $ClaudeSkill = Join-Path $TargetRoot ".claude\skills\$Skill"
+            $AgentsSkill = Join-Path $TargetRoot ".agents/skills/$Skill"
+            $ClaudeSkill = Join-Path $TargetRoot ".claude/skills/$Skill"
             if (-not (Test-TreesEqual $AgentsSkill $ClaudeSkill)) {
                 throw "Overlapping Cline/Claude adapters differ for skill '$Skill'."
             }
@@ -312,11 +313,11 @@
         Say "target: $TargetRoot"
         Say ''
         Say '==> Which agent harnesses should this project support?'
-        $ClineOn = Decide $env:WITH_CLINE '    Cline (AGENTS.md + .agents\skills)?' 'y' 'WITH_CLINE'
-        $ClaudeOn = Decide $env:WITH_CLAUDE '    Claude Code (.claude\rules + .claude\skills)?' 'y' 'WITH_CLAUDE'
-        $AgentsOn = Decide $env:WITH_AGENTS '    Codex / Antigravity (AGENTS.md + .agents\)?' 'y' 'WITH_AGENTS'
+        $ClineOn = Decide $env:WITH_CLINE '    Cline (AGENTS.md + .agents/skills)?' 'y' 'WITH_CLINE'
+        $ClaudeOn = Decide $env:WITH_CLAUDE '    Claude Code (.claude/rules + .claude/skills)?' 'y' 'WITH_CLAUDE'
+        $AgentsOn = Decide $env:WITH_AGENTS '    Codex / Antigravity (AGENTS.md + .agents/)?' 'y' 'WITH_AGENTS'
         $GeminiValue = if (Test-Path Env:WITH_GEMINI) { $env:WITH_GEMINI } else { $env:WITH_AGENTS }
-        $GeminiOn = Decide $GeminiValue '    Gemini CLI (GEMINI.md + .agents\skills)?' 'y' 'WITH_GEMINI'
+        $GeminiOn = Decide $GeminiValue '    Gemini CLI (GEMINI.md + .agents/skills)?' 'y' 'WITH_GEMINI'
         if (-not ($ClineOn -or $ClaudeOn -or $AgentsOn -or $GeminiOn)) { throw 'Nothing selected -- nothing to do.' }
         Say ''
 
@@ -328,21 +329,21 @@
 
         if ($ClineOn -or $AgentsOn -or $GeminiOn) {
             Say '==> Shared .agents convention -- Goal Ledger'
-            Install-Rule '.agents\rules'
-            Install-Skills '.agents\skills'
+            Install-Rule '.agents/rules'
+            Install-Skills '.agents/skills'
             if ($ClineOn) { Warn-ClineIgnore }
             if ($ClineOn -or $AgentsOn) { Ensure-AgentsPointer (Join-Path $TargetRoot 'AGENTS.md') }
             if ($GeminiOn) { Ensure-Line (Join-Path $TargetRoot 'GEMINI.md') '@.agents/rules/goal-ledger.md' '# Project context' }
-            Say '    installed .agents\{rules,skills} and preserved root instruction files'
+            Say '    installed .agents/{rules,skills} and preserved root instruction files'
             Say ''
         }
 
         if ($ClaudeOn) {
             Say '==> Claude Code -- Goal Ledger'
-            Install-Rule '.claude\rules'
-            Install-Skills '.claude\skills'
+            Install-Rule '.claude/rules'
+            Install-Skills '.claude/skills'
             Warn-RedundantClaudeImport
-            Say '    installed auto-discovered .claude\{rules,skills} and preserved CLAUDE.md'
+            Say '    installed auto-discovered .claude/{rules,skills} and preserved CLAUDE.md'
             Say ''
         }
 
@@ -354,11 +355,14 @@
         Say "https://github.com/$GoalLedgerRepo#readme"
     }
     catch {
-        Write-Error "ERROR: $($_.Exception.Message)"
+        $Failure = $_
     }
     finally {
         if ($StagingRoot -and (Test-Path -LiteralPath $StagingRoot)) {
             Remove-Item -LiteralPath $StagingRoot -Recurse -Force
         }
+    }
+    if ($Failure) {
+        throw "ERROR: $($Failure.Exception.Message)"
     }
 }
