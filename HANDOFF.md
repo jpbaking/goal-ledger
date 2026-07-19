@@ -215,9 +215,10 @@ at least document the rate limit in the README.
   the kit's Claude path and the `Warn-RedundantClaudeImport` logic are sound. No
   change needed.
 - README's claim that current Cline reads `AGENTS.md` and the shared
-  `.agents/skills` location (README lines 60-68) was **not** verified in this
-  review; re-check against current Cline docs before the next release and note
-  the verified Cline version in the README.
+  `.agents/skills` location (README lines 60-68) was verified on 2026-07-19
+  against current harness documentation (see the multi-harness support research
+  playbook); the README now records the verification date. All four skill
+  descriptions are under Cline's documented 1,024-character limit.
 - README "CI runs … on Linux, macOS, Windows PowerShell 5.1, and PowerShell 7"
   is accurate in intent but currently undermined by 2.1 on the unix side.
 

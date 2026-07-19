@@ -68,7 +68,11 @@ Ledger reference is added only when missing.
 | Claude Code | Auto-discovered `.claude/rules/` | `.claude/skills/` |
 
 Current Cline supports the shared `.agents/skills` location, so the installer
-does not create a second `.cline/skills` copy.
+does not create a second `.cline/skills` copy (verified against current Cline
+documentation, 2026-07-19: Cline reads `AGENTS.md` and discovers
+`.agents/skills`, and duplicate same-named copies in its compatibility
+locations can surface twice — which is why overlapping adapters are verified
+byte-for-byte instead).
 
 ### Non-interactive options
 
