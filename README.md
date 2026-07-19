@@ -1,151 +1,125 @@
 # lazyway-io-boilerplate
 
-Personal boilerplate kit. It bundles the AI-agent tooling and dev scripts jpbaking
-wants in **every** project — a reasoning/process framework for coding agents, a
-safe `docker compose` wrapper, and (for frontend apps) a design system — into
-one install, for whichever agent harnesses the project uses.
+Goal Ledger is a project-local, git-tracked execution record for coding agents,
+installed into the discovery paths used by the selected agent harnesses.
 
-This README is written for **both** audiences that read it: a human setting
-up a project by hand, and a coding agent asked to bootstrap or retrofit a
-project with this kit.
+There are no separate model tiers. Codex, Claude Code, Google Antigravity,
+Gemini CLI, and Cline receive the same semantic rules and skills.
 
-## Two content sets, three harness targets
+It provides crash recovery, inter-agent handoff, branch isolation, phase commits,
+and optional safe squash-on-acceptance through a committed `.goal-ledger/`.
 
-The same procedures ship in two tunings, and the installer maps them onto the
-harnesses you pick:
+DOX, compose-helper, and lazyway-io-design are not vendored or installed by this
+repository. Install those projects separately if a project needs them.
 
-| Source set | Tuned for | Installed to |
-|---|---|---|
-| `sets/small` | small/weak models (< ~32B): reasoning scaffold, mechanical checklists, hand-holding | **Cline** — `.clinerules/` + `.cline/skills/` + `/workflow` shortcuts |
-| `sets/frontier` | frontier models (Sonnet+, GPT-5+, Gemini 3+): contracts stated once, judgment trusted | **Claude Code** — `CLAUDE.md` + `.claude/{rules,skills,commands}` — and the shared **`.agents/` + `AGENTS.md` convention** read by Codex CLI, Google Antigravity, and Gemini CLI |
-| `sets/shared` | everyone (harness-neutral procedures: DOX skills, compose-helper, design) | wherever the sets above land |
+## Canonical source layout
 
-Key file conventions (`AGENTS.md` DOX trees, `.tmp-agent-scratch/` master
-plans, the git commit contract) are identical across sets, so **a task started
-under one harness resumes under any other**. Each installed harness also gets
-an ignore file/setting (`.clineignore`, `.claude/settings.json` deny rules,
-`.geminiignore`, an `AGENTS.md` note) so it doesn't read the other harnesses'
-config trees — `AGENTS.md` itself is never ignored; it's the shared contract.
+```text
+rules/
+  goal-ledger.md
+skills/
+  goal-ledger/SKILL.md
+  goal-ledger-resume/SKILL.md
+  goal-ledger-status/SKILL.md
+  goal-ledger-abandon/SKILL.md
+```
 
-## Components
+The installer copies these canonical files into harness discovery locations. No
+commands or workflow wrappers are generated; the Agent Skills files are the
+workflows.
 
-| Component | Required? | What it provides | Upstream |
-|---|---|---|---|
-| **core rules** | always | structured-reasoning rules (small set) / working disciplines (frontier set) | [jpbaking/cline-rules](https://github.com/jpbaking/cline-rules) (small set base) |
-| **compose-helper** | script always; agent rule/skill per harness | `compose-helper.sh`/`.ps1` + `compose-helper.env`, plus a rule + skill teaching agents to use it safely | [jpbaking/compose-helper](https://github.com/jpbaking/compose-helper) |
-| **DOX** | optional (default No) | the [DOX](https://github.com/jpbaking/dox) `AGENTS.md` doc framework: rule + 5 `dox-*` skills, with the framework template packaged offline | [jpbaking/dox](https://github.com/jpbaking/dox) |
-| **master-plan** | optional (default No) | crash-safe multi-phase task plans: rule + 4 `master-plan*` skills, git commit trail with squash-on-acceptance | this repo |
-| **lazyway-io-design** | optional (default No) — webapps with a frontend | design-system rule + skill (the skill fetches the actual `design/` CSS/JS kit on first UI task) | [jpbaking/lazyway-io-design](https://github.com/jpbaking/lazyway-io-design) |
+The former core reasoning rules are intentionally separate from this repository
+and are available as a public
+[core-reasoning-rules.md Gist](https://gist.github.com/jpbaking/a4d69ef15315f0189420bee1baa43c7a).
 
 ## Install
 
-Run the installer from your project's root. It only adds/updates its own
-files — it never touches your application code — and is safe to re-run any
-time to pick up updates. It asks which harnesses to support (each defaults to
-Yes) and which optional components to include.
+Run the installer from the target project's root.
 
-**Linux / macOS**
+Linux or macOS:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/jpbaking/lazyway-io-boilerplate/main/install.sh | sh
 ```
 
-**Windows (PowerShell 5.1+ or pwsh)**
+Windows PowerShell 5.1 or newer:
 
 ```powershell
 irm https://raw.githubusercontent.com/jpbaking/lazyway-io-boilerplate/main/install.ps1 | iex
 ```
 
-For a brand-new project: `mkdir my-new-app && cd my-new-app && git init`, then
-run the installer.
+The installer asks which harnesses the project supports. Each defaults to Yes.
+It preserves existing `AGENTS.md` and `CLAUDE.md` content and adds its rule
+references only when missing.
 
-What the installer does:
+| Harness | Rules | Skills |
+|---|---|---|
+| Codex, Antigravity, Gemini | `.agents/rules/` reached through `AGENTS.md` | `.agents/skills/` |
+| Cline | `.agents/rules/` reached through `AGENTS.md` | `.agents/skills/` |
+| Claude Code | `.claude/rules/` imported by `CLAUDE.md` | `.claude/skills/` |
 
-- asks which harnesses to install for — Cline / Claude Code / the `.agents`
-  convention (Codex, Antigravity, Gemini) — each defaulting to Yes
-- always installs compose-helper's script via its own upstream installer
-  (never overwrites an existing `compose-helper.env`; only reports missing keys)
-- for Cline: delegates to the upstream cline-rules installer (which asks about
-  its DOX and plan-execute sub-components, default No each, and safely merges
-  an existing `.clinerules/`), then overlays this repo's harmonized/updated
-  files on top — including replacing legacy plan-execute with the master-plan
-  family — and writes `.clineignore`
-- for Claude Code / `.agents`: installs the frontier set; DOX and master-plan
-  mirror the Cline choices when Cline was installed, otherwise the installer
-  asks directly; writes `CLAUDE.md` imports and `.claude/settings.json`
-  idempotently, appends an `AGENTS.md` pointer section, writes `.geminiignore`
-- components you decline stay absent from every harness
+Current Cline supports the shared `.agents/skills` location, so the installer
+does not create a second `.cline/skills` copy.
 
-Options (environment variables):
+### Non-interactive options
 
 | Variable | Effect |
 |---|---|
-| `WITH_CLINE=1/0`, `WITH_CLAUDE=1/0`, `WITH_AGENTS=1/0` | Select harnesses without being asked |
-| `WITH_DESIGN=1/0` | Include/skip the design component without being asked |
-| `ASSUME_YES=1` | Answer Yes to every prompt this installer owns (delegated installers keep their own defaults) |
-| `LAZYWAY_BOILERPLATE_REF=<ref>` | Fetch this repo's files from a ref other than `main` |
-| target dir as `sh -s -- /path`, or `$env:BOILERPLATE_TARGET` on Windows | Install into a directory other than the current one |
+| `WITH_CLINE=1/0` | Enable or disable Cline support without prompting |
+| `WITH_CLAUDE=1/0` | Enable or disable Claude Code support without prompting |
+| `WITH_AGENTS=1/0` | Enable or disable Codex/Antigravity/Gemini support without prompting |
+| `ASSUME_YES=1` | Answer Yes to installer-owned prompts |
+| `LAZYWAY_BOILERPLATE_REF=<ref>` | Install from a branch, tag, or commit other than `main` |
+| shell target argument or `$env:BOILERPLATE_TARGET` | Install into a directory other than the current one |
 
-### Manual install
+Example:
 
-No script, full control — copy what you want from `sets/` by hand:
-`sets/small/*` → Cline paths, `sets/frontier/*` + `sets/shared/*` → Claude
-Code or `.agents` paths. Every file is plain Markdown, shell, or PowerShell;
-nothing requires a package manager or build step.
-
-## For AI agents
-
-If you're an agent asked to "set this project up with the boilerplate" (or
-similar):
-
-1. Check whether the target harness's files already exist (`.clinerules/`,
-   `CLAUDE.md` + `.claude/`, or `AGENTS.md` + `.agents/`). If they do, you're
-   done unless asked to update — re-running the installer is always safe.
-2. Otherwise run the installer for the platform you're on (§ above), passing
-   `WITH_*` env vars if the user already told you which harnesses they want.
-   Prefer the installer over hand-copying: it contains conflict-handling and
-   idempotent-merge logic not worth approximating from memory.
-3. Ask the user only what the installer can't decide: which harnesses, and
-   whether this is a frontend project that wants `lazyway-io-design`.
-4. Once installed, the rules files (`.clinerules/`, `.claude/rules/`, or
-   `.agents/rules/`) are the authoritative always-on instructions — read them
-   directly rather than re-deriving their content from this README.
-5. Never retype installed files from memory if they look stale — re-run the
-   installer (or re-fetch the specific file from `sets/` in this repo).
-
-## Repo layout
-
-```
-lazyway-io-boilerplate/
-├── README.md            ← this file — describes the boilerplate, not your app
-├── LICENSE              ← this boilerplate's own license (0BSD)
-├── install.sh           ← installer (Linux/macOS)
-├── install.ps1          ← installer (Windows)
-├── compose-helper.sh    ← docker compose wrapper (see compose-helper repo)
-├── compose-helper.env   ← compose-helper's own config
-└── sets/                ← the content the installer maps onto harnesses
-    ├── shared/          ← harness-neutral: dox-* skills (+ packaged AGENTS.md
-    │                      template), compose-helper + design rules/skills
-    ├── small/           ← weak-model set for Cline: rules, master-plan
-    │                      skills, /workflow shortcuts
-    └── frontier/        ← frontier-model set for Claude Code + .agents:
-                           rules, master-plan skills, /command shortcuts
+```sh
+WITH_CLINE=0 WITH_CLAUDE=1 WITH_AGENTS=1 sh install.sh /path/to/project
 ```
 
-## Updating
+## Updating and migration
 
-Re-run the installer in the project root with the same harness selection —
-every file it touches is freshly re-downloaded; `compose-helper.env`,
-`CLAUDE.md`, `AGENTS.md`, ignore files, and `.claude/settings.json` are
-merged/appended idempotently rather than overwritten.
+Re-run the installer with the same harness selection. Canonical rule and skill
+copies are refreshed in place.
+
+When upgrading from the former multi-component boilerplate, the installer removes
+the known generated adapters for core reasoning, DOX, compose-helper,
+lazyway-io-design, legacy Master Plan commands/workflows and skills, and
+duplicate Cline skill copies. It intentionally does not remove:
+
+- DOX framework text already merged into a project's `AGENTS.md`, because that
+  file may also contain project-owned guidance;
+- `compose-helper.sh`, `compose-helper.ps1`, or `compose-helper.env` already in a
+  target project, because application scripts may depend on them.
+- a completed legacy `.tmp-agent-scratch/`, because it may still be useful history.
+
+Remove those manually after reviewing the target project if they are no longer
+wanted. If `.tmp-agent-scratch/MASTER-PLAN.md` contains an unfinished legacy plan,
+the installer stops before changing anything so that work can be finished,
+abandoned, or deliberately migrated first.
+
+## Using Goal Ledger
+
+Ask your agent to use the `goal-ledger` skill for multi-phase or long-running
+work. Use `goal-ledger-resume` for recovery or handoff, `goal-ledger-status` for
+a read-only report, and `goal-ledger-abandon` to stop while preserving history.
+
+Goal Ledger writes `GOAL.md` and `phase-NNNN.md` files directly under
+`.goal-ledger/`. The directory is committed, never gitignored, and remains in the
+accepted result. `GOAL.md` records an immutable baseline, a stable Goal ID, the
+chosen Git strategy, and handoff state. Commit trailers connect Git history to
+the goal without trying to store a moving `HEAD` hash inside the commit itself.
+
+The workflow strongly recommends an isolated `goal/<goal-id>` branch. Staying on
+the current branch is supported, but automatic squashing is refused when commits
+are foreign, interleaved, merged, published, or otherwise unsafe to rewrite.
+When a goal branch was pushed for remote handoff, retain its history and use a
+squash merge during integration instead of rewriting the published branch.
+
+Harness-specific menus may expose different invocation syntax, but successful use
+does not depend on a slash-command wrapper.
 
 ## License
 
-This repo's own [LICENSE](LICENSE) is [0BSD](https://opensource.org/licenses/0BSD),
-matching the upstream kits it bundles (cline-rules, compose-helper — check
-[lazyway-io-design](https://github.com/jpbaking/lazyway-io-design) for its own
-terms). Do whatever you want with the boilerplate glue itself, no attribution
-required.
-
-It only covers this repo's own files — the installer never writes this
-`README.md` or `LICENSE` into your project.
+This repository is licensed under [0BSD](LICENSE).
