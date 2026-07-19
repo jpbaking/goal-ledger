@@ -118,6 +118,23 @@ class ValidatorTests(unittest.TestCase):
             result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
             self.assertTrue(result["valid"], result)
 
+    def test_last_completed_phase_follows_forward_dependency_completion_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            goal = goal_text(phase2_status="done")
+            self.make_ledger(root, goal=goal, phase1_status="done", phase2_status="done")
+            ledger = root / ".goal-ledger"
+            (ledger / "phase-0001.md").write_text(
+                phase_text(1, "Prepare", "done", "phase-0002"), encoding="utf-8"
+            )
+            (ledger / "phase-0002.md").write_text(
+                phase_text(2, "Verify", "done", "none"), encoding="utf-8"
+            )
+
+            result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
+
+            self.assertTrue(result["valid"], result)
+
     def test_unborn_repository_has_actionable_error(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

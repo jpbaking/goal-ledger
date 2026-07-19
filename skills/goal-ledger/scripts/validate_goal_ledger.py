@@ -267,12 +267,6 @@ class LedgerValidator:
         )
         if done_phases and last_completed == "none":
             self.error("Last completed phase is none even though completed phases exist.")
-        elif done_phases and last_completed not in ("", done_phases[-1]):
-            self.error(
-                "Last completed phase '{}' does not identify the latest done phase '{}'.".format(
-                    last_completed, done_phases[-1]
-                )
-            )
         if last_completed != "none":
             if last_completed not in self.phase_data:
                 self.error("Last completed phase '{}' does not exist.".format(last_completed))

@@ -88,6 +88,7 @@ The `GOAL.md` mirror and sub-task vocabulary is exactly: `[todo]`, `[ongoing]`, 
 Invariants:
 
 - The phase file's `Status:` is authoritative; the matching bracketed line in `GOAL.md` mirrors it. Repair mismatches in favor of the phase file.
+- `Last completed phase` identifies the phase most recently completed in execution order, which may differ from numeric phase order; it must name a phase whose status is `done`, or `none` when no phase is done.
 - Every phase and sub-task has an observable "done when" check.
 - Use 2–7 phases with 2–7 sub-tasks each. Add new numbered phases or sub-tasks; never renumber existing ones.
 - A skipped phase satisfies dependencies only after verifying that its outputs are unnecessary or updating future todo phases accordingly. Record the reason in both the phase status and logs. Skip a whole phase only with explicit user approval or when verified evidence makes it unnecessary.
