@@ -44,6 +44,9 @@ curl -fsSL https://raw.githubusercontent.com/jpbaking/goal-ledger/main/install.s
 
 The shell installer requires `unzip` plus either `curl` or `wget` when installing
 from GitHub. Local `GOAL_LEDGER_SOURCE` installations do not require them.
+GitHub archive downloads use the unauthenticated API, which is limited to 60
+requests per hour per public IP. Shared CI egress can use
+`GOAL_LEDGER_ARCHIVE_URL` to supply a cached or alternate archive URL.
 
 Windows PowerShell 5.1 or newer:
 

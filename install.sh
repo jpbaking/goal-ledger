@@ -9,14 +9,32 @@ GOAL_LEDGER_REF="${GOAL_LEDGER_REF:-main}"
 TARGET_ROOT="${1:-.}"
 STAGING_ROOT=""
 SOURCE_ROOT=""
+ACTIVE_INCOMING=""
+ACTIVE_BACKUP=""
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
+  if [ -n "$ACTIVE_INCOMING" ] && [ -e "$ACTIVE_INCOMING" ]; then
+    if [ -d "$ACTIVE_INCOMING" ]; then rm -rf "$ACTIVE_INCOMING"; else rm -f "$ACTIVE_INCOMING"; fi
+  fi
+  if [ -n "$ACTIVE_BACKUP" ] && [ -e "$ACTIVE_BACKUP" ]; then
+    say "WARNING: interrupted install backup left at $ACTIVE_BACKUP"
+  fi
   [ -z "$STAGING_ROOT" ] || [ ! -d "$STAGING_ROOT" ] || rm -rf "$STAGING_ROOT"
 }
-trap cleanup 0 HUP INT TERM
+
+on_signal() {
+  cleanup
+  trap - EXIT
+  exit "$1"
+}
+
+trap cleanup EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 ask() {
   question="$1"; default="${2:-n}"
@@ -105,12 +123,19 @@ install_file() {
   file_backup="$file_destination.goal-ledger-backup.$$"
   mkdir -p "$file_parent"
   [ ! -d "$file_destination" ] || die "Expected file destination but found directory: $file_destination"
+  [ ! -e "$file_incoming" ] || die "Temporary installation path already exists: $file_incoming"
+  [ ! -e "$file_backup" ] || die "Temporary backup path already exists: $file_backup"
+  ACTIVE_INCOMING="$file_incoming"
+  ACTIVE_BACKUP="$file_backup"
   cp "$file_source" "$file_incoming"
   if [ -e "$file_destination" ]; then mv "$file_destination" "$file_backup"; fi
   if mv "$file_incoming" "$file_destination"; then
     [ ! -e "$file_backup" ] || rm -f "$file_backup"
+    ACTIVE_INCOMING=""
+    ACTIVE_BACKUP=""
   else
     [ ! -e "$file_backup" ] || mv "$file_backup" "$file_destination"
+    ACTIVE_BACKUP=""
     die "Could not install $file_destination."
   fi
 }
@@ -122,12 +147,18 @@ install_tree() {
   tree_backup="$tree_destination.goal-ledger-backup.$$"
   mkdir -p "$tree_parent"
   [ ! -e "$tree_incoming" ] || die "Temporary installation path already exists: $tree_incoming"
+  [ ! -e "$tree_backup" ] || die "Temporary backup path already exists: $tree_backup"
+  ACTIVE_INCOMING="$tree_incoming"
+  ACTIVE_BACKUP="$tree_backup"
   cp -R "$tree_source" "$tree_incoming"
   if [ -e "$tree_destination" ]; then mv "$tree_destination" "$tree_backup"; fi
   if mv "$tree_incoming" "$tree_destination"; then
     [ ! -e "$tree_backup" ] || rm -rf "$tree_backup"
+    ACTIVE_INCOMING=""
+    ACTIVE_BACKUP=""
   else
     [ ! -e "$tree_backup" ] || mv "$tree_backup" "$tree_destination"
+    ACTIVE_BACKUP=""
     die "Could not install $tree_destination."
   fi
 }

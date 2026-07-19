@@ -151,6 +151,35 @@ class ShellInstallerTests(unittest.TestCase):
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve")
             self.assertFalse((target / ".agents").exists())
 
+    def test_preexisting_backup_path_stops_before_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            rule = target / ".agents" / "rules" / "goal-ledger.md"
+            rule.parent.mkdir(parents=True)
+            rule.write_text("preserve old rule\n", encoding="utf-8")
+            command = """
+backup="$1/.agents/rules/goal-ledger.md.goal-ledger-backup.$$"
+mkdir -p "$backup"
+printf '%s\n' preserve > "$backup/sentinel"
+exec sh "$2" "$1"
+"""
+
+            result = subprocess.run(
+                ["sh", "-c", command, "backup-collision-test", str(target), str(ROOT / "install.sh")],
+                env=installer_environment(WITH_CLINE="1"),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0, result.stdout)
+            self.assertIn("Temporary backup path already exists", result.stdout)
+            self.assertEqual(rule.read_text(encoding="utf-8"), "preserve old rule\n")
+            backups = list(rule.parent.glob("goal-ledger.md.goal-ledger-backup.*"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual((backups[0] / "sentinel").read_text(encoding="utf-8"), "preserve\n")
+
     def test_gemini_only_adds_gemini_bridge(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)

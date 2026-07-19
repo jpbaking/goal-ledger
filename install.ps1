@@ -11,6 +11,8 @@
     $StagingRoot = $null
     $SourceRoot = $null
     $Failure = $null
+    $ActiveIncoming = $null
+    $ActiveBackup = $null
 
     function Say([string]$Message) { Write-Host $Message }
 
@@ -128,6 +130,8 @@
             Copy-Item -LiteralPath $ArchiveUrl -Destination $Archive
         }
         else {
+            [Net.ServicePointManager]::SecurityProtocol =
+                [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -UseBasicParsing $ArchiveUrl -OutFile $Archive
         }
         Expand-Archive -LiteralPath $Archive -DestinationPath $Extracted
@@ -157,14 +161,21 @@
         $Backup = "$Destination.goal-ledger-backup-$PID"
         if (-not (Test-Path -LiteralPath $Parent)) { New-Item -ItemType Directory -Path $Parent -Force | Out-Null }
         if (Test-Path -LiteralPath $Destination -PathType Container) { throw "Expected file destination but found directory: $Destination" }
+        if (Test-Path -LiteralPath $Incoming) { throw "Temporary installation path already exists: $Incoming" }
+        if (Test-Path -LiteralPath $Backup) { throw "Temporary backup path already exists: $Backup" }
+        Set-Variable -Name ActiveIncoming -Value $Incoming -Scope 1
+        Set-Variable -Name ActiveBackup -Value $Backup -Scope 1
         Copy-Item -LiteralPath $SourceFile -Destination $Incoming
         if (Test-Path -LiteralPath $Destination) { Move-Item -LiteralPath $Destination -Destination $Backup }
         try {
             Move-Item -LiteralPath $Incoming -Destination $Destination
             if (Test-Path -LiteralPath $Backup) { Remove-Item -LiteralPath $Backup -Force }
+            Set-Variable -Name ActiveIncoming -Value $null -Scope 1
+            Set-Variable -Name ActiveBackup -Value $null -Scope 1
         }
         catch {
             if (Test-Path -LiteralPath $Backup) { Move-Item -LiteralPath $Backup -Destination $Destination }
+            Set-Variable -Name ActiveBackup -Value $null -Scope 1
             throw
         }
     }
@@ -176,14 +187,20 @@
         $Backup = "$Destination.goal-ledger-backup-$PID"
         if (-not (Test-Path -LiteralPath $Parent)) { New-Item -ItemType Directory -Path $Parent -Force | Out-Null }
         if (Test-Path -LiteralPath $Incoming) { throw "Temporary installation path already exists: $Incoming" }
+        if (Test-Path -LiteralPath $Backup) { throw "Temporary backup path already exists: $Backup" }
+        Set-Variable -Name ActiveIncoming -Value $Incoming -Scope 1
+        Set-Variable -Name ActiveBackup -Value $Backup -Scope 1
         Copy-Item -LiteralPath $SourceTree -Destination $Incoming -Recurse
         if (Test-Path -LiteralPath $Destination) { Move-Item -LiteralPath $Destination -Destination $Backup }
         try {
             Move-Item -LiteralPath $Incoming -Destination $Destination
             if (Test-Path -LiteralPath $Backup) { Remove-Item -LiteralPath $Backup -Recurse -Force }
+            Set-Variable -Name ActiveIncoming -Value $null -Scope 1
+            Set-Variable -Name ActiveBackup -Value $null -Scope 1
         }
         catch {
             if (Test-Path -LiteralPath $Backup) { Move-Item -LiteralPath $Backup -Destination $Destination }
+            Set-Variable -Name ActiveBackup -Value $null -Scope 1
             throw
         }
     }
@@ -358,6 +375,12 @@
         $Failure = $_
     }
     finally {
+        if ($ActiveIncoming -and (Test-Path -LiteralPath $ActiveIncoming)) {
+            Remove-Item -LiteralPath $ActiveIncoming -Recurse -Force
+        }
+        if ($ActiveBackup -and (Test-Path -LiteralPath $ActiveBackup)) {
+            Say "WARNING: interrupted install backup left at $ActiveBackup"
+        }
         if ($StagingRoot -and (Test-Path -LiteralPath $StagingRoot)) {
             Remove-Item -LiteralPath $StagingRoot -Recurse -Force
         }
