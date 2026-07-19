@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,6 +127,21 @@ class ValidatorTests(unittest.TestCase):
             result = VALIDATOR.LedgerValidator(root, check_git=True).validate()
             self.assertFalse(result["valid"])
             self.assertIn("no initial commit", "\n".join(result["errors"]))
+
+    def test_missing_git_binary_has_actionable_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            goal = goal_text(status="approved", repository="yes", strategy="none")
+            self.make_ledger(root, goal=goal)
+
+            with mock.patch.object(VALIDATOR.subprocess, "run", side_effect=FileNotFoundError):
+                result = VALIDATOR.LedgerValidator(root, check_git=True).validate()
+
+            self.assertFalse(result["valid"])
+            self.assertEqual(
+                [error for error in result["errors"] if "git is unavailable" in error],
+                ["git is unavailable; run with --no-git or install git."],
+            )
 
 
 if __name__ == "__main__":

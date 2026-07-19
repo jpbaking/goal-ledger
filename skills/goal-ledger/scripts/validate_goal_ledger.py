@@ -39,6 +39,7 @@ class LedgerValidator:
         self.goal_fields = {}
         self.goal_phases = {}
         self.phase_data = {}
+        self.git_unavailable = False
 
     def error(self, message):
         self.errors.append(message)
@@ -318,13 +319,19 @@ class LedgerValidator:
             self.warn("Goal is executing but no phase is currently ongoing; this is valid only at a phase boundary.")
 
     def git(self, *args):
-        return subprocess.run(
-            ["git", "-C", str(self.root)] + list(args),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+        try:
+            return subprocess.run(
+                ["git", "-C", str(self.root)] + list(args),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            if not self.git_unavailable:
+                self.error("git is unavailable; run with --no-git or install git.")
+                self.git_unavailable = True
+            return None
 
     def validate_git_fields(self):
         repository = self.goal_fields.get("Repository")
@@ -372,6 +379,8 @@ class LedgerValidator:
             return
 
         inside = self.git("rev-parse", "--is-inside-work-tree")
+        if inside is None:
+            return
         if inside.returncode != 0:
             self.error("GOAL.md says Repository yes, but the project is not in a readable Git worktree.")
             return
