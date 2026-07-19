@@ -205,6 +205,9 @@ inspect_global_collisions() {
 ensure_agents_pointer() {
   file="$TARGET_ROOT/AGENTS.md"
   if [ -f "$file" ] && grep -qF '.agents/rules/goal-ledger.md' "$file"; then return; fi
+  if [ -s "$file" ] && [ "$(tail -c 1 "$file" | wc -l | tr -d ' ')" -eq 0 ]; then
+    printf '\n' >> "$file"
+  fi
   cat >> "$file" <<'EOF'
 
 ## Goal Ledger
@@ -218,6 +221,9 @@ EOF
 ensure_gemini_pointer() {
   file="$TARGET_ROOT/GEMINI.md"
   if [ ! -f "$file" ]; then printf '%s\n\n' '# Project context' > "$file"; fi
+  if [ -s "$file" ] && [ "$(tail -c 1 "$file" | wc -l | tr -d ' ')" -eq 0 ]; then
+    printf '\n' >> "$file"
+  fi
   grep -qxF '@.agents/rules/goal-ledger.md' "$file" 2>/dev/null || \
     printf '%s\n' '@.agents/rules/goal-ledger.md' >> "$file"
 }

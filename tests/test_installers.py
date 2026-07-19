@@ -160,6 +160,28 @@ class ShellInstallerTests(unittest.TestCase):
             self.assertFalse((target / "AGENTS.md").exists())
             self.assertTrue((target / ".agents" / "skills" / "goal-ledger" / "SKILL.md").is_file())
 
+    def test_appends_to_instruction_files_without_trailing_newline_idempotently(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            agents = target / "AGENTS.md"
+            gemini = target / "GEMINI.md"
+            agents.write_text("# Existing agents", encoding="utf-8")
+            gemini.write_text("# Existing Gemini", encoding="utf-8")
+
+            result = self.run_installer(target, WITH_AGENTS="1", WITH_GEMINI="1")
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            agents_after_first = agents.read_text(encoding="utf-8")
+            gemini_after_first = gemini.read_text(encoding="utf-8")
+            self.assertTrue(agents_after_first.startswith("# Existing agents\n\n## Goal Ledger\n"))
+            self.assertEqual(gemini_after_first, "# Existing Gemini\n@.agents/rules/goal-ledger.md\n")
+
+            second = self.run_installer(target, WITH_AGENTS="1", WITH_GEMINI="1")
+
+            self.assertEqual(second.returncode, 0, second.stdout)
+            self.assertEqual(agents.read_text(encoding="utf-8"), agents_after_first)
+            self.assertEqual(gemini.read_text(encoding="utf-8"), gemini_after_first)
+
     def test_cline_and_claude_adapters_match_without_redundant_claude_import(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
