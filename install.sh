@@ -99,7 +99,9 @@ prepare_source() {
   download "$archive_url" "$archive"
   unzip -q "$archive" -d "$extracted"
   set -- "$extracted"/*
-  [ "$#" -eq 1 ] && [ -d "$1" ] || die "Downloaded archive did not contain exactly one project directory."
+  if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then
+    die "Downloaded archive did not contain exactly one project directory."
+  fi
   SOURCE_ROOT="$1"
 }
 
