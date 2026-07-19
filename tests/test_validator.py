@@ -77,6 +77,26 @@ class ValidatorTests(unittest.TestCase):
             phase_text(2, "Verify", phase2_status, "phase-0001"), encoding="utf-8"
         )
 
+    def git(self, root, *args):
+        return subprocess.run(
+            ["git", "-C", str(root)] + list(args),
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout.strip()
+
+    def commit_fixture(self, root, subject, *body_parts):
+        fixture = root / "fixture.txt"
+        previous = fixture.read_text(encoding="utf-8") if fixture.exists() else ""
+        fixture.write_text(previous + subject + "\n", encoding="utf-8")
+        self.git(root, "add", "fixture.txt")
+        args = ["commit", "-q", "-m", subject]
+        for part in body_parts:
+            args.extend(("-m", part))
+        self.git(root, *args)
+        return self.git(root, "rev-parse", "HEAD")
+
     def test_valid_non_git_ledger(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -221,6 +241,47 @@ class ValidatorTests(unittest.TestCase):
             result = VALIDATOR.LedgerValidator(root, check_git=True).validate()
             self.assertFalse(result["valid"])
             self.assertIn("no initial commit", "\n".join(result["errors"]))
+
+    def test_commit_trailer_classification_in_fixture_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.git(root, "init", "-q")
+            self.git(root, "config", "user.name", "Goal Ledger Test")
+            self.git(root, "config", "user.email", "goal-ledger@example.invalid")
+            baseline = self.commit_fixture(root, "baseline")
+            branch = self.git(root, "branch", "--show-current")
+            matching = self.commit_fixture(
+                root,
+                "goal-ledger(done): phase-0001 — Prepare",
+                "Goal-ID: 20260719-test-goal\nGoal-Phase: phase-0001",
+            )
+            missing = self.commit_fixture(root, "goal-ledger(begin): phase-0002 — Verify")
+            foreign = self.commit_fixture(root, "feat: unrelated", "Goal-ID: 20260719-other-goal")
+            unclassified = self.commit_fixture(root, "docs: unrelated")
+            unknown_phase = self.commit_fixture(
+                root,
+                "test: unknown phase trailer",
+                "Goal-ID: 20260719-test-goal\nGoal-Phase: phase-9999",
+            )
+            goal = goal_text(
+                repository="yes", strategy="current-branch", baseline=baseline
+            )
+            goal = goal.replace("- Starting branch: -", f"- Starting branch: {branch}")
+            goal = goal.replace("- Work branch: -", f"- Work branch: {branch}")
+            goal = goal.replace("- Starting upstream at start: -", "- Starting upstream at start: none")
+            goal = goal.replace("- Work upstream at start: -", "- Work upstream at start: none")
+            self.make_ledger(root, goal=goal)
+
+            result = VALIDATOR.LedgerValidator(root, check_git=True).validate()
+
+            errors = "\n".join(result["errors"])
+            warnings = "\n".join(result["warnings"])
+            self.assertFalse(result["valid"])
+            self.assertNotIn(matching[:12], errors + warnings)
+            self.assertIn(f"Framework commit {missing[:12]} lacks matching Goal-ID", errors)
+            self.assertIn(f"Commit {foreign[:12]} carries a foreign Goal-ID", warnings)
+            self.assertIn(f"Commit {unclassified[:12]} is foreign to this goal", warnings)
+            self.assertIn(f"Commit {unknown_phase[:12]} references unknown phase-9999", errors)
 
     def test_missing_git_binary_has_actionable_error(self):
         with tempfile.TemporaryDirectory() as directory:
