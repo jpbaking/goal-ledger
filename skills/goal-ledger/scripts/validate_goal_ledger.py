@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Validate Goal Ledger files and, when available, their Git contract."""
 
-from __future__ import print_function
-
 import argparse
 import json
 import re
@@ -25,6 +23,7 @@ GOAL_STATUSES = {
 }
 TERMINAL_PHASE_STATUSES = {"done", "skipped"}
 FULL_SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
+UPSTREAM_RE = re.compile(r"^.+@[0-9a-fA-F]{40,64}$")
 GOAL_ID_RE = re.compile(r"^\d{8}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 PHASE_ID_RE = re.compile(r"^phase-\d{4}$")
 
@@ -55,7 +54,12 @@ class LedgerValidator:
             raise ValueError("{} is not valid UTF-8: {}".format(path, exc))
 
     @staticmethod
-    def field_map(text):
+    def field_map(text, section=None):
+        if section is not None:
+            section_match = re.search(
+                r"(?ms)^## {}\s*\n(.*?)(?=^## |\Z)".format(re.escape(section)), text
+            )
+            text = section_match.group(1) if section_match else ""
         fields = {}
         for match in re.finditer(r"(?m)^- ([A-Za-z][A-Za-z ]+): (.*)$", text):
             fields[match.group(1)] = match.group(2).strip()
@@ -66,7 +70,10 @@ class LedgerValidator:
         match = PHASE_STATUS_RE.fullmatch(value)
         if not match:
             return None, None
-        return match.group(1), match.group(2)
+        status, reason = match.groups()
+        if reason and status not in ("skipped", "needs-human"):
+            return None, None
+        return status, reason
 
     def require_field(self, fields, name, context):
         value = fields.get(name)
@@ -97,7 +104,8 @@ class LedgerValidator:
         except ValueError as exc:
             self.error(str(exc))
             return
-        self.goal_fields = self.field_map(text)
+        for section in ("Goal", "Git", "Handoff"):
+            self.goal_fields.update(self.field_map(text, section))
 
         goal_id = self.require_field(self.goal_fields, "Goal ID", "GOAL.md")
         if goal_id and not GOAL_ID_RE.fullmatch(goal_id):
@@ -162,7 +170,7 @@ class LedgerValidator:
             except ValueError as exc:
                 self.error(str(exc))
                 continue
-            fields = self.field_map(text)
+            fields = self.field_map(text.split("\n## ", 1)[0])
             heading = re.search(r"(?m)^# (phase-\d{4}) — (.+)$", text)
             if not heading:
                 self.error("{} has an invalid heading.".format(phase_path.name))
@@ -205,10 +213,19 @@ class LedgerValidator:
                     self.error("{} sub-task {} has invalid status '[{}]'.".format(phase_id, number, status_text))
                 elif sub_status in ("skipped", "needs-human") and not sub_reason:
                     self.error("{} sub-task {} requires a reason.".format(phase_id, number))
-                if not action.strip() or not check.strip() or check.strip() == "<check>":
+                if not action.strip() or not check.strip() or check.strip() in (
+                    "<check>",
+                    "<runnable or observable check>",
+                ):
                     self.error("{} sub-task {} lacks an observable check.".format(phase_id, number))
                 if sub_status == "ongoing":
                     ongoing_subtasks.append("{} sub-task {}".format(phase_id, number))
+                    if status != "ongoing":
+                        self.warn(
+                            "{} sub-task {} is ongoing while its phase is {}.".format(
+                                phase_id, number, status or "invalid"
+                            )
+                        )
                 subtasks.append({"number": int(number), "status": sub_status})
 
             numbered_lines = re.findall(r"(?m)^\d+\. .+$", text)
@@ -363,6 +380,12 @@ class LedgerValidator:
         for name in ("Starting branch", "Work branch"):
             if self.goal_fields.get(name) in (None, "", "-"):
                 self.error("Prepared Git strategy requires '{}'.".format(name))
+        for name in ("Starting upstream at start", "Work upstream at start"):
+            upstream = self.goal_fields.get(name)
+            if upstream != "none" and (not upstream or not UPSTREAM_RE.fullmatch(upstream)):
+                self.error(
+                    "Prepared Git strategy requires '{}' as <ref>@<full SHA> or none.".format(name)
+                )
 
     def validate_git(self):
         repository = self.goal_fields.get("Repository")

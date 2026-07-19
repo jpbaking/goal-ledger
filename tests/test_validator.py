@@ -108,6 +108,83 @@ class ValidatorTests(unittest.TestCase):
             self.assertIn("does not match", joined)
             self.assertIn("Unexpected", joined)
 
+    def test_log_field_does_not_shadow_handoff_field(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            goal = goal_text().replace(
+                "- created ledger with 2 phases", "- Next action: retry tests"
+            )
+            self.make_ledger(root, goal=goal)
+            validator = VALIDATOR.LedgerValidator(root, check_git=False)
+
+            result = validator.validate()
+
+            self.assertTrue(result["valid"], result)
+            self.assertEqual(validator.goal_fields["Next action"], "verify")
+
+    def test_reason_suffix_is_rejected_for_done_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            invalid = "done — reason: should not be accepted"
+            goal = goal_text().replace("[done] phase-0001", f"[{invalid}] phase-0001")
+            self.make_ledger(root, goal=goal, phase1_status=invalid)
+
+            result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
+
+            self.assertFalse(result["valid"])
+            self.assertIn("invalid status", "\n".join(result["errors"]))
+
+    def test_ongoing_subtask_in_nonongoing_phase_warns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_ledger(root)
+            phase = root / ".goal-ledger" / "phase-0002.md"
+            phase.write_text(
+                phase.read_text(encoding="utf-8").replace(
+                    "1. [done] Perform first action", "1. [ongoing] Perform first action"
+                ),
+                encoding="utf-8",
+            )
+
+            result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
+
+            self.assertTrue(result["valid"], result)
+            self.assertIn("while its phase is todo", "\n".join(result["warnings"]))
+
+    def test_expanded_subtask_check_placeholder_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.make_ledger(root)
+            phase = root / ".goal-ledger" / "phase-0002.md"
+            phase.write_text(
+                phase.read_text(encoding="utf-8").replace(
+                    "first evidence exists", "<runnable or observable check>"
+                ),
+                encoding="utf-8",
+            )
+
+            result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
+
+            self.assertFalse(result["valid"])
+            self.assertIn("lacks an observable check", "\n".join(result["errors"]))
+
+    def test_prepared_strategy_requires_structured_upstream_snapshots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            goal = goal_text(
+                repository="yes", strategy="current-branch", baseline="a" * 40
+            )
+            goal = goal.replace("- Starting branch: -", "- Starting branch: main")
+            goal = goal.replace("- Work branch: -", "- Work branch: main")
+            goal = goal.replace("- Starting upstream at start: -", "- Starting upstream at start: malformed")
+            goal = goal.replace("- Work upstream at start: -", "- Work upstream at start: none")
+            self.make_ledger(root, goal=goal)
+
+            result = VALIDATOR.LedgerValidator(root, check_git=False).validate()
+
+            self.assertFalse(result["valid"])
+            self.assertIn("Starting upstream at start", "\n".join(result["errors"]))
+
     def test_skipped_phase_with_reason_can_satisfy_dependency(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
