@@ -106,12 +106,12 @@ prepare_source() {
 }
 
 validate_source() {
-  [ -f "$SOURCE_ROOT/rules/goal-ledger.md" ] || die "Source is missing rules/goal-ledger.md."
-  [ -f "$SOURCE_ROOT/skills/goal-ledger/scripts/validate_goal_ledger.py" ] || \
+  [ -f "$SOURCE_ROOT/rules/shared/goal-ledger.md" ] || die "Source is missing rules/shared/goal-ledger.md."
+  [ -f "$SOURCE_ROOT/skills/shared/goal-ledger/scripts/validate_goal_ledger.py" ] || \
     die "Source is missing the Goal Ledger validator script."
   for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
-    skill_file="$SOURCE_ROOT/skills/$skill/SKILL.md"
-    [ -f "$skill_file" ] || die "Source is missing skills/$skill/SKILL.md."
+    skill_file="$SOURCE_ROOT/skills/shared/$skill/SKILL.md"
+    [ -f "$skill_file" ] || die "Source is missing skills/shared/$skill/SKILL.md."
     skill_name="$(sed -n 's/^name:[[:space:]]*//p' "$skill_file" | head -n 1)"
     [ "$skill_name" = "$skill" ] || die "Skill name '$skill_name' does not match directory '$skill'."
     grep -q '^description:' "$skill_file" || die "Skill '$skill' has no description."
@@ -166,13 +166,13 @@ install_tree() {
 }
 
 install_rule() {
-  install_file "$SOURCE_ROOT/rules/goal-ledger.md" "$1/goal-ledger.md"
+  install_file "$SOURCE_ROOT/rules/shared/goal-ledger.md" "$1/goal-ledger.md"
 }
 
 install_skills() {
   skills_destination="$1"
   for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
-    install_tree "$SOURCE_ROOT/skills/$skill" "$skills_destination/$skill"
+    install_tree "$SOURCE_ROOT/skills/shared/$skill" "$skills_destination/$skill"
   done
 }
 
@@ -246,20 +246,50 @@ ensure_agents_pointer() {
 
 ## Goal Ledger
 
-Read and follow `.agents/rules/goal-ledger.md`.
-Reusable procedures live in `.agents/skills/`; use the matching skill when its
-description applies.
+If `.agents/rules/goal-ledger.md` exists, read and follow it. Reusable
+procedures live in `.agents/skills/`; use the matching skill when its
+description applies. If the rule or skills are missing (fresh clone — the
+installed adapters are gitignored), re-run the Goal Ledger installer from
+https://github.com/jpbaking/goal-ledger to regenerate them.
 EOF
 }
 
 ensure_gemini_pointer() {
   file="$TARGET_ROOT/GEMINI.md"
-  if [ ! -f "$file" ]; then printf '%s\n\n' '# Project context' > "$file"; fi
+  if [ -f "$file" ] && grep -qF 'goal-ledger' "$file"; then return; fi
+  if [ ! -f "$file" ]; then printf '%s\n' '# Project context' > "$file"; fi
   if [ -s "$file" ] && [ "$(tail -c 1 "$file" | wc -l | tr -d ' ')" -eq 0 ]; then
     printf '\n' >> "$file"
   fi
-  grep -qxF '@.agents/rules/goal-ledger.md' "$file" 2>/dev/null || \
-    printf '%s\n' '@.agents/rules/goal-ledger.md' >> "$file"
+  # Conditional prose rather than an @import: the adapter file is gitignored,
+  # so a fresh clone must not carry a hard import of a missing file.
+  cat >> "$file" <<'EOF'
+
+## Goal Ledger
+
+If `.agents/rules/goal-ledger.md` exists, read and follow it, and use the
+matching `.agents/skills/` skill when its description applies. If missing
+(fresh clone — installed adapters are gitignored), re-run the Goal Ledger
+installer from https://github.com/jpbaking/goal-ledger.
+EOF
+}
+
+ensure_gitignore() {
+  file="$TARGET_ROOT/.gitignore"
+  gi_mark="# Goal Ledger installer-managed agent adapters (generated; do not edit or commit)"
+  if [ -f "$file" ] && grep -qF "$gi_mark" "$file"; then
+    say "NOTE: kept existing .gitignore Goal Ledger block"
+    return
+  fi
+  {
+    [ -s "$file" ] && printf '\n'
+    printf '%s\n' "$gi_mark"
+    for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
+      printf '.agents/skills/%s/\n.claude/skills/%s/\n' "$skill" "$skill"
+    done
+    printf '.agents/rules/goal-ledger.md\n.claude/rules/goal-ledger.md\n'
+  } >> "$file"
+  say "NOTE: added Goal Ledger adapter entries to .gitignore (root instruction files and .goal-ledger/ stay tracked)"
 }
 
 warn_clineignore() {
@@ -333,6 +363,7 @@ if [ "$claude_on" = "1" ]; then
 fi
 
 verify_overlapping_skill_copies
+ensure_gitignore
 
 say "Done. Installed the Goal Ledger rule and skill family into: $TARGET_ROOT"
 say "Unrelated and legacy files were inspected but left untouched."

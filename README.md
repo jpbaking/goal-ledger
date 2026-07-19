@@ -16,12 +16,14 @@ repository. Install those projects separately if a project needs them.
 
 ```text
 rules/
-  goal-ledger.md
+  shared/
+    goal-ledger.md
 skills/
-  goal-ledger/SKILL.md
-  goal-ledger-resume/SKILL.md
-  goal-ledger-status/SKILL.md
-  goal-ledger-abandon/SKILL.md
+  shared/
+    goal-ledger/SKILL.md
+    goal-ledger-resume/SKILL.md
+    goal-ledger-status/SKILL.md
+    goal-ledger-abandon/SKILL.md
 ```
 
 The installer copies these canonical files into harness discovery locations. No
@@ -34,7 +36,20 @@ and are available as a public
 
 ## Install
 
-Run the installer from the target project's root.
+**Preferred: let your AI agent install it.** An agent merges with whatever the
+project already has — existing `AGENTS.md` / `GEMINI.md` / `CLAUDE.md`
+content, ignore rules, legacy Master Plan artifacts, same-named skills —
+instead of colliding with it. Paste this into your coding agent from the
+target project's root:
+
+```
+Fetch https://raw.githubusercontent.com/jpbaking/goal-ledger/main/AGENT-INSTALL.md and follow its instructions exactly to install Goal Ledger into this project. Merge with — never blindly overwrite — any existing AGENTS.md, GEMINI.md, CLAUDE.md, rule, or ignore files, and report every file you created or changed.
+```
+
+The procedure in [AGENT-INSTALL.md](./AGENT-INSTALL.md) is the authoritative
+install contract; the script installers below implement the same layout.
+
+**Alternative: the script installers.** Run from the target project's root.
 
 Linux or macOS:
 
@@ -59,6 +74,14 @@ It downloads one complete GitHub project archive into a temporary directory,
 validates the canonical files, copies whole skill directories, and removes the
 temporary archive. Existing root instruction content is preserved and the Goal
 Ledger reference is added only when missing.
+
+Installed rule and skill copies are generated adapters: both install paths add
+them to the target's `.gitignore` (marker-guarded, idempotent). The root
+instruction files (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`) and the runtime
+`.goal-ledger/` directory stay committable. The appended bridge text is
+conditional ("if `.agents/rules/goal-ledger.md` exists…"), so a fresh clone —
+which lacks the gitignored adapters — degrades safely; re-run either install
+path there to regenerate them.
 
 | Harness | Rules | Skills |
 |---|---|---|

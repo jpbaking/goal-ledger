@@ -88,6 +88,21 @@
         Set-TextDocument $File $Text $Document.Encoding
     }
 
+    function Get-PointerBody([string]$Newline) {
+        # Conditional wording: the installed adapters are gitignored, so a
+        # fresh clone must degrade safely when they are absent.
+        $Lines = @(
+            '## Goal Ledger',
+            '',
+            'If `.agents/rules/goal-ledger.md` exists, read and follow it. Reusable',
+            'procedures live in `.agents/skills/`; use the matching skill when its',
+            'description applies. If the rule or skills are missing (fresh clone -- the',
+            'installed adapters are gitignored), re-run the Goal Ledger installer from',
+            'https://github.com/jpbaking/goal-ledger to regenerate them.'
+        )
+        return ($Lines -join $Newline) + $Newline
+    }
+
     function Ensure-AgentsPointer([string]$File) {
         $RulePath = '.agents/rules/goal-ledger.md'
         if (Test-Path -LiteralPath $File) {
@@ -96,17 +111,58 @@
             $Newline = if ($Document.Text.Contains("`r`n")) { "`r`n" } else { "`n" }
             $Text = $Document.Text
             if ($Text.Length -gt 0 -and -not $Text.EndsWith("`n") -and -not $Text.EndsWith("`r")) { $Text += $Newline }
-            $Text += "$Newline## Goal Ledger$Newline$NewlineRead and follow ``.agents/rules/goal-ledger.md``.$Newline"
-            $Text += "Reusable procedures live in ``.agents/skills/``; use the matching skill when its$Newline"
-            $Text += "description applies.$Newline"
+            $Text += $Newline + (Get-PointerBody $Newline)
             Set-TextDocument $File $Text $Document.Encoding
             return
         }
         $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-        $Text = "# Project rules`r`n`r`n## Goal Ledger`r`n`r`nRead and follow ``.agents/rules/goal-ledger.md``.`r`n"
-        $Text += "Reusable procedures live in ``.agents/skills/``; use the matching skill when its`r`n"
-        $Text += "description applies.`r`n"
+        $Text = "# Project rules`r`n`r`n" + (Get-PointerBody "`r`n")
         Set-TextDocument $File $Text $Utf8NoBom
+    }
+
+    function Ensure-GeminiPointer([string]$File) {
+        $RulePath = '.agents/rules/goal-ledger.md'
+        if (Test-Path -LiteralPath $File) {
+            $Document = Get-TextDocument $File
+            if ($Document.Text.Contains($RulePath)) { return }
+            $Newline = if ($Document.Text.Contains("`r`n")) { "`r`n" } else { "`n" }
+            $Text = $Document.Text
+            if ($Text.Length -gt 0 -and -not $Text.EndsWith("`n") -and -not $Text.EndsWith("`r")) { $Text += $Newline }
+            $Text += $Newline + (Get-PointerBody $Newline)
+            Set-TextDocument $File $Text $Document.Encoding
+            return
+        }
+        $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        $Text = "# Project context`r`n`r`n" + (Get-PointerBody "`r`n")
+        Set-TextDocument $File $Text $Utf8NoBom
+    }
+
+    function Ensure-Gitignore {
+        $File = Join-Path $TargetRoot '.gitignore'
+        $Mark = '# Goal Ledger installer-managed agent adapters (generated; do not edit or commit)'
+        if ((Test-Path -LiteralPath $File) -and (Get-TextDocument $File).Text.Contains($Mark)) {
+            Say 'NOTE: kept existing .gitignore Goal Ledger block'
+            return
+        }
+        $Entries = @($Mark)
+        foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
+            $Entries += ".agents/skills/$Skill/"
+            $Entries += ".claude/skills/$Skill/"
+        }
+        $Entries += '.agents/rules/goal-ledger.md'
+        $Entries += '.claude/rules/goal-ledger.md'
+        if (Test-Path -LiteralPath $File) {
+            $Document = Get-TextDocument $File
+            $Newline = if ($Document.Text.Contains("`r`n")) { "`r`n" } else { "`n" }
+            $Text = $Document.Text
+            if ($Text.Length -gt 0 -and -not $Text.EndsWith("`n") -and -not $Text.EndsWith("`r")) { $Text += $Newline }
+            $Text += $Newline + (($Entries -join $Newline) + $Newline)
+            Set-TextDocument $File $Text $Document.Encoding
+        } else {
+            $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+            Set-TextDocument $File (($Entries -join "`n") + "`n") $Utf8NoBom
+        }
+        Say 'NOTE: added Goal Ledger adapter entries to .gitignore (root instruction files and .goal-ledger/ stay tracked)'
     }
 
     function Prepare-Source {
@@ -142,13 +198,13 @@
     }
 
     function Validate-Source {
-        $Rule = Join-Path $SourceRoot 'rules/goal-ledger.md'
-        if (-not (Test-Path -LiteralPath $Rule -PathType Leaf)) { throw 'Source is missing rules/goal-ledger.md.' }
-        $Validator = Join-Path $SourceRoot 'skills/goal-ledger/scripts/validate_goal_ledger.py'
+        $Rule = Join-Path $SourceRoot 'rules/shared/goal-ledger.md'
+        if (-not (Test-Path -LiteralPath $Rule -PathType Leaf)) { throw 'Source is missing rules/shared/goal-ledger.md.' }
+        $Validator = Join-Path $SourceRoot 'skills/shared/goal-ledger/scripts/validate_goal_ledger.py'
         if (-not (Test-Path -LiteralPath $Validator -PathType Leaf)) { throw 'Source is missing the Goal Ledger validator script.' }
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            $SkillFile = Join-Path $SourceRoot "skills/$Skill/SKILL.md"
-            if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) { throw "Source is missing skills/$Skill/SKILL.md." }
+            $SkillFile = Join-Path $SourceRoot "skills/shared/$Skill/SKILL.md"
+            if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) { throw "Source is missing skills/shared/$Skill/SKILL.md." }
             $Text = [System.IO.File]::ReadAllText($SkillFile)
             if ($Text -notmatch "(?m)^name:\s*$([regex]::Escape($Skill))\s*$") { throw "Skill name does not match directory '$Skill'." }
             if ($Text -notmatch '(?m)^description:') { throw "Skill '$Skill' has no description." }
@@ -207,12 +263,12 @@
     }
 
     function Install-Rule([string]$Destination) {
-        Install-File (Join-Path $SourceRoot 'rules/goal-ledger.md') "$Destination/goal-ledger.md"
+        Install-File (Join-Path $SourceRoot 'rules/shared/goal-ledger.md') "$Destination/goal-ledger.md"
     }
 
     function Install-Skills([string]$Destination) {
         foreach ($Skill in 'goal-ledger', 'goal-ledger-resume', 'goal-ledger-status', 'goal-ledger-abandon') {
-            Install-Tree (Join-Path $SourceRoot "skills/$Skill") "$Destination/$Skill"
+            Install-Tree (Join-Path $SourceRoot "skills/shared/$Skill") "$Destination/$Skill"
         }
     }
 
@@ -358,7 +414,7 @@
             Install-Skills '.agents/skills'
             if ($ClineOn) { Warn-ClineIgnore }
             if ($ClineOn -or $AgentsOn) { Ensure-AgentsPointer (Join-Path $TargetRoot 'AGENTS.md') }
-            if ($GeminiOn) { Ensure-Line (Join-Path $TargetRoot 'GEMINI.md') '@.agents/rules/goal-ledger.md' '# Project context' }
+            if ($GeminiOn) { Ensure-GeminiPointer (Join-Path $TargetRoot 'GEMINI.md') }
             Say '    installed .agents/{rules,skills} and preserved root instruction files'
             Say ''
         }
@@ -373,6 +429,7 @@
         }
 
         Verify-OverlappingSkillCopies
+        Ensure-Gitignore
 
         Say "Done. Installed the Goal Ledger rule and skill family into: $TargetRoot"
         Say 'Unrelated and legacy files were inspected but left untouched.'

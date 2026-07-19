@@ -213,13 +213,37 @@ exec sh "$2" "$1"
             agents_after_first = agents.read_text(encoding="utf-8")
             gemini_after_first = gemini.read_text(encoding="utf-8")
             self.assertTrue(agents_after_first.startswith("# Existing agents\n\n## Goal Ledger\n"))
-            self.assertEqual(gemini_after_first, "# Existing Gemini\n@.agents/rules/goal-ledger.md\n")
+            self.assertTrue(
+                gemini_after_first.startswith("# Existing Gemini\n\n## Goal Ledger\n"),
+                gemini_after_first,
+            )
+            self.assertIn(".agents/rules/goal-ledger.md", gemini_after_first)
 
             second = self.run_installer(target, WITH_AGENTS="1", WITH_GEMINI="1")
 
             self.assertEqual(second.returncode, 0, second.stdout)
             self.assertEqual(agents.read_text(encoding="utf-8"), agents_after_first)
             self.assertEqual(gemini.read_text(encoding="utf-8"), gemini_after_first)
+
+    def test_gitignore_adapter_block_added_idempotently(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+            gitignore = target / ".gitignore"
+            gitignore.write_text("node_modules/\n", encoding="utf-8")
+
+            result = self.run_installer(target, WITH_AGENTS="1", WITH_CLAUDE="1")
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            after_first = gitignore.read_text(encoding="utf-8")
+            self.assertTrue(after_first.startswith("node_modules/\n"))
+            self.assertIn("# Goal Ledger installer-managed agent adapters", after_first)
+            self.assertIn(".agents/skills/goal-ledger/", after_first)
+            self.assertIn(".claude/rules/goal-ledger.md", after_first)
+            self.assertNotIn(".goal-ledger/", after_first.replace(".goal-ledger-", ""))
+
+            second = self.run_installer(target, WITH_AGENTS="1", WITH_CLAUDE="1")
+            self.assertEqual(second.returncode, 0, second.stdout)
+            self.assertEqual(gitignore.read_text(encoding="utf-8"), after_first)
 
     def test_cline_and_claude_adapters_match_without_redundant_claude_import(self):
         with tempfile.TemporaryDirectory() as directory:
