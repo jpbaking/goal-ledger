@@ -1,4 +1,4 @@
-# lazyway-io-boilerplate
+# Goal Ledger
 
 Goal Ledger is a project-local, git-tracked execution record for coding agents,
 installed into the discovery paths used by the selected agent harnesses.
@@ -39,13 +39,13 @@ Run the installer from the target project's root.
 Linux or macOS:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/jpbaking/lazyway-io-boilerplate/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jpbaking/goal-ledger/main/install.sh | sh
 ```
 
 Windows PowerShell 5.1 or newer:
 
 ```powershell
-irm https://raw.githubusercontent.com/jpbaking/lazyway-io-boilerplate/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/jpbaking/goal-ledger/main/install.ps1 | iex
 ```
 
 The installer asks which harnesses the project supports. Each defaults to Yes.
@@ -69,8 +69,8 @@ does not create a second `.cline/skills` copy.
 | `WITH_CLAUDE=1/0` | Enable or disable Claude Code support without prompting |
 | `WITH_AGENTS=1/0` | Enable or disable Codex/Antigravity/Gemini support without prompting |
 | `ASSUME_YES=1` | Answer Yes to installer-owned prompts |
-| `LAZYWAY_BOILERPLATE_REF=<ref>` | Install from a branch, tag, or commit other than `main` |
-| shell target argument or `$env:BOILERPLATE_TARGET` | Install into a directory other than the current one |
+| `GOAL_LEDGER_REF=<ref>` | Install from a branch, tag, or commit other than `main` |
+| shell target argument or `$env:GOAL_LEDGER_TARGET` | Install into a directory other than the current one |
 
 Example:
 
@@ -83,7 +83,7 @@ WITH_CLINE=0 WITH_CLAUDE=1 WITH_AGENTS=1 sh install.sh /path/to/project
 Re-run the installer with the same harness selection. Canonical rule and skill
 copies are refreshed in place.
 
-When upgrading from the former multi-component boilerplate, the installer removes
+When upgrading from the former multi-component release, the installer removes
 the known generated adapters for core reasoning, DOX, compose-helper,
 lazyway-io-design, legacy Master Plan commands/workflows and skills, and
 duplicate Cline skill copies. It intentionally does not remove:

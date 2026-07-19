@@ -1,12 +1,12 @@
 #!/bin/sh
-# Project-local installer/updater for lazyway-io-boilerplate.
+# Project-local installer/updater for Goal Ledger.
 # Installs the Goal Ledger rule and skill family.
 
 set -eu
 
-BOILERPLATE_REPO="jpbaking/lazyway-io-boilerplate"
-BOILERPLATE_REF="${LAZYWAY_BOILERPLATE_REF:-main}"
-CONTENT_BASE="https://raw.githubusercontent.com/$BOILERPLATE_REPO/$BOILERPLATE_REF"
+GOAL_LEDGER_REPO="jpbaking/goal-ledger"
+GOAL_LEDGER_REF="${GOAL_LEDGER_REF:-main}"
+CONTENT_BASE="https://raw.githubusercontent.com/$GOAL_LEDGER_REPO/$GOAL_LEDGER_REF"
 TARGET_ROOT="${1:-.}"
 
 say() { printf '%s\n' "$*"; }
@@ -121,6 +121,10 @@ migrate_agents_pointer() {
   [ -f "$file" ] || return 0
   tmp_file="$(mktemp)"
   awk '
+    $0 == "## Agent rules (lazyway-io boilerplate)" {
+      print "## Goal Ledger"
+      next
+    }
     $0 == "Read and follow `core.md` and `master-plan.md` in `.agents/rules/`." {
       print "Read and follow every Markdown file in `.agents/rules/`."
       next
@@ -150,8 +154,8 @@ allow_agents_for_cline() {
 
 [ -d "$TARGET_ROOT" ] || die "Target directory '$TARGET_ROOT' does not exist."
 
-say "jpbaking's boilerplate kit — installer"
-say "source: github.com/$BOILERPLATE_REPO@$BOILERPLATE_REF"
+say "Goal Ledger — installer"
+say "source: github.com/$GOAL_LEDGER_REPO@$GOAL_LEDGER_REF"
 say "target: $TARGET_ROOT"
 say ""
 say "==> Which agent harnesses should this project support?"
@@ -172,7 +176,7 @@ if [ "$cline_on" = "1" ] || [ "$agents_on" = "1" ]; then
   if ! grep -qF '.agents/rules/' "$AGENTS_MD" 2>/dev/null; then
     cat >> "$AGENTS_MD" <<'EOF'
 
-## Agent rules (lazyway-io boilerplate)
+## Goal Ledger
 
 Read and follow every Markdown file in `.agents/rules/`.
 Reusable procedures live in `.agents/skills/`; use the matching skill when its
@@ -206,4 +210,4 @@ migrate_agents_pointer
 say "Done. Installed the Goal Ledger rule and skill family into: $TARGET_ROOT"
 say "Previously installed compose-helper scripts and DOX content inside AGENTS.md are left untouched; remove them manually if no longer wanted."
 say "Ask your agent to use the goal-ledger skill for multi-phase work."
-say "https://github.com/$BOILERPLATE_REPO#readme"
+say "https://github.com/$GOAL_LEDGER_REPO#readme"

@@ -1,14 +1,14 @@
-# Project-local installer/updater for lazyway-io-boilerplate (PowerShell 5.1+).
+# Project-local installer/updater for Goal Ledger (PowerShell 5.1+).
 # Installs the Goal Ledger rule and skill family.
 
 & {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
 
-    $BoilerplateRepo = 'jpbaking/lazyway-io-boilerplate'
-    $BoilerplateRef = if ($env:LAZYWAY_BOILERPLATE_REF) { $env:LAZYWAY_BOILERPLATE_REF } else { 'main' }
-    $ContentBase = "https://raw.githubusercontent.com/$BoilerplateRepo/$BoilerplateRef"
-    $TargetRoot = if ($env:BOILERPLATE_TARGET) { $env:BOILERPLATE_TARGET } else { (Get-Location).Path }
+    $GoalLedgerRepo = 'jpbaking/goal-ledger'
+    $GoalLedgerRef = if ($env:GOAL_LEDGER_REF) { $env:GOAL_LEDGER_REF } else { 'main' }
+    $ContentBase = "https://raw.githubusercontent.com/$GoalLedgerRepo/$GoalLedgerRef"
+    $TargetRoot = if ($env:GOAL_LEDGER_TARGET) { $env:GOAL_LEDGER_TARGET } else { (Get-Location).Path }
 
     function Say([string]$Message) { Write-Host $Message }
 
@@ -123,7 +123,11 @@
         $Legacy = 'Read and follow `core.md` and `master-plan.md` in `.agents/rules/`.'
         $Replacement = 'Read and follow every Markdown file in `.agents/rules/`.'
         $Original = @(Get-Content $AgentsMd)
-        $Lines = @($Original | ForEach-Object { if ($_ -eq $Legacy) { $Replacement } else { $_ } })
+        $Lines = @($Original | ForEach-Object {
+            if ($_ -eq '## Agent rules (lazyway-io boilerplate)') { '## Goal Ledger' }
+            elseif ($_ -eq $Legacy) { $Replacement }
+            else { $_ }
+        })
         if (($Original -join "`n") -ne ($Lines -join "`n")) { Set-Content -Path $AgentsMd -Value $Lines }
     }
 
@@ -151,8 +155,8 @@
             throw "Target directory '$TargetRoot' does not exist."
         }
 
-        Say "jpbaking's boilerplate kit -- installer"
-        Say "source: github.com/$BoilerplateRepo@$BoilerplateRef"
+        Say "Goal Ledger -- installer"
+        Say "source: github.com/$GoalLedgerRepo@$GoalLedgerRef"
         Say "target: $TargetRoot"
         Say ""
         Say "==> Which agent harnesses should this project support?"
@@ -174,7 +178,7 @@
             if (-not $HasPointer) {
                 $Pointer = @'
 
-## Agent rules (lazyway-io boilerplate)
+## Goal Ledger
 
 Read and follow every Markdown file in `.agents/rules/`.
 Reusable procedures live in `.agents/skills/`; use the matching skill when its
@@ -206,7 +210,7 @@ description applies.
         Say "Done. Installed the Goal Ledger rule and skill family into: $TargetRoot"
         Say "Previously installed compose-helper scripts and DOX content inside AGENTS.md are left untouched; remove them manually if no longer wanted."
         Say "Ask your agent to use the goal-ledger skill for multi-phase work."
-        Say "https://github.com/$BoilerplateRepo#readme"
+        Say "https://github.com/$GoalLedgerRepo#readme"
     }
     catch {
         Write-Error "ERROR: $($_.Exception.Message)"
