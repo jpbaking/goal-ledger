@@ -42,6 +42,9 @@ Linux or macOS:
 curl -fsSL https://raw.githubusercontent.com/jpbaking/goal-ledger/main/install.sh | sh
 ```
 
+The shell installer requires `unzip` plus either `curl` or `wget` when installing
+from GitHub. Local `GOAL_LEDGER_SOURCE` installations do not require them.
+
 Windows PowerShell 5.1 or newer:
 
 ```powershell
@@ -49,14 +52,17 @@ irm https://raw.githubusercontent.com/jpbaking/goal-ledger/main/install.ps1 | ie
 ```
 
 The installer asks which harnesses the project supports. Each defaults to Yes.
-It preserves existing `AGENTS.md` and `CLAUDE.md` content and adds its rule
-references only when missing.
+It downloads one complete GitHub project archive into a temporary directory,
+validates the canonical files, copies whole skill directories, and removes the
+temporary archive. Existing root instruction content is preserved and the Goal
+Ledger reference is added only when missing.
 
 | Harness | Rules | Skills |
 |---|---|---|
-| Codex, Antigravity, Gemini | `.agents/rules/` reached through `AGENTS.md` | `.agents/skills/` |
+| Codex, Antigravity | `.agents/rules/` reached through `AGENTS.md` | `.agents/skills/` |
+| Gemini CLI | `.agents/rules/` imported by `GEMINI.md` | `.agents/skills/` |
 | Cline | `.agents/rules/` reached through `AGENTS.md` | `.agents/skills/` |
-| Claude Code | `.claude/rules/` imported by `CLAUDE.md` | `.claude/skills/` |
+| Claude Code | Auto-discovered `.claude/rules/` | `.claude/skills/` |
 
 Current Cline supports the shared `.agents/skills` location, so the installer
 does not create a second `.cline/skills` copy.
@@ -67,37 +73,44 @@ does not create a second `.cline/skills` copy.
 |---|---|
 | `WITH_CLINE=1/0` | Enable or disable Cline support without prompting |
 | `WITH_CLAUDE=1/0` | Enable or disable Claude Code support without prompting |
-| `WITH_AGENTS=1/0` | Enable or disable Codex/Antigravity/Gemini support without prompting |
+| `WITH_AGENTS=1/0` | Enable or disable Codex/Antigravity support without prompting |
+| `WITH_GEMINI=1/0` | Enable or disable Gemini CLI support without prompting; inherits `WITH_AGENTS` when unset |
 | `ASSUME_YES=1` | Answer Yes to installer-owned prompts |
 | `GOAL_LEDGER_REF=<ref>` | Install from a branch, tag, or commit other than `main` |
+| `GOAL_LEDGER_REPO=<owner/repo>` | Install from a GitHub fork |
+| `GOAL_LEDGER_SOURCE=<path>` | Install from a local source checkout for development or CI |
+| `GOAL_LEDGER_ARCHIVE_URL=<url>` | Override the GitHub archive URL |
 | shell target argument or `$env:GOAL_LEDGER_TARGET` | Install into a directory other than the current one |
 
 Example:
 
 ```sh
-WITH_CLINE=0 WITH_CLAUDE=1 WITH_AGENTS=1 sh install.sh /path/to/project
+WITH_CLINE=0 WITH_CLAUDE=1 WITH_AGENTS=1 WITH_GEMINI=0 sh install.sh /path/to/project
 ```
 
 ## Updating and migration
 
-Re-run the installer with the same harness selection. Canonical rule and skill
-copies are refreshed in place.
+Re-run the installer with the same harness selection. Canonical Goal Ledger rule
+and skill copies are refreshed in place. Whole same-named Goal Ledger skill
+directories are replaced so retired bundled resources cannot linger.
 
-When upgrading from the former multi-component release, the installer removes
-the known generated adapters for core reasoning, DOX, compose-helper,
-lazyway-io-design, legacy Master Plan commands/workflows and skills, and
-duplicate Cline skill copies. It intentionally does not remove:
+The installer assumes every unrelated existing adapter belongs to the target
+project or another tool. It never deletes legacy core reasoning, DOX,
+compose-helper, lazyway-io-design, workflow, command, or skill files. It only
+inspects same-purpose Master Plan and Goal Ledger locations, reports possible
+duplicates, and leaves non-destination files untouched. Review and remove stale
+adapters manually when appropriate.
 
-- DOX framework text already merged into a project's `AGENTS.md`, because that
-  file may also contain project-owned guidance;
-- `compose-helper.sh`, `compose-helper.ps1`, or `compose-helper.env` already in a
-  target project, because application scripts may depend on them.
-- a completed legacy `.tmp-agent-scratch/`, because it may still be useful history.
+Ignore files are preserved. If `.clineignore` may hide the canonical `.agents`
+path, the installer reports the matching pattern instead of removing it. It also
+reports same-named global skills. When both Cline and Claude are selected, their
+required adapter copies are verified byte-for-byte and the installer asks you to
+confirm through Cline's skill list that each name resolves once; ignore files are
+not treated as an unverified skill-registry filter.
 
-Remove those manually after reviewing the target project if they are no longer
-wanted. If `.tmp-agent-scratch/MASTER-PLAN.md` contains an unfinished legacy plan,
-the installer stops before changing anything so that work can be finished,
-abandoned, or deliberately migrated first.
+If `.tmp-agent-scratch/MASTER-PLAN.md` contains an unfinished legacy plan, the
+installer stops before downloading or changing anything so that work can be
+finished, abandoned, or deliberately migrated first.
 
 ## Using Goal Ledger
 
@@ -119,6 +132,22 @@ squash merge during integration instead of rewriting the published branch.
 
 Harness-specific menus may expose different invocation syntax, but successful use
 does not depend on a slash-command wrapper.
+
+The main skill includes a read-only `scripts/validate_goal_ledger.py` helper. The
+Goal Ledger skills run it when Python 3 is available and fall back to manual
+contract checks otherwise. It validates file structure, status mirrors,
+dependencies, lifecycle invariants, Git baselines, branches, and commit trailers.
+
+## Development
+
+Run the local checks with:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+CI runs the validator and installer fixtures on Linux, macOS, Windows PowerShell
+5.1, and PowerShell 7.
 
 ## License
 

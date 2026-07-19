@@ -43,6 +43,7 @@ Skip Git steps when `Repository: no`.
 - Repair multiple ongoing items, `GOAL.md`/phase mismatches, missing reason suffixes, stale `Last completed phase`, and stale Handoff fields. The phase file wins status disagreements.
 - If a phase is fully complete, close and commit it under the Goal Ledger Git contract. If not, retain the committed begin marker and continue its work.
 - Append a resume event to `GOAL.md` and identify the evidence used.
+- Run the validator bundled with the sibling `goal-ledger` skill as `scripts/validate_goal_ledger.py --root <project root>`. Repair ledger errors before continuing; record Git warnings in Handoff. If Python 3 is unavailable, check the section 2 invariants and Git contract manually.
 
 ## 5. Continue
 

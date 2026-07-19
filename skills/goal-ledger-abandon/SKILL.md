@@ -27,6 +27,7 @@ On confirmation:
 1. Set Goal status `abandoned`.
 2. Update Handoff: current position `abandoned`, next action `none`, and blockers with the user's reason when provided.
 3. Append an abandonment log entry. Do not change phase statuses merely to make them terminal.
+4. Run the validator bundled with the sibling `goal-ledger` skill as `scripts/validate_goal_ledger.py --root <project root>`. Repair ledger-format errors before preserving the state; warnings do not prevent abandonment. If Python 3 is unavailable, check the format manually.
 
 ## 3. Preserve Git state
 

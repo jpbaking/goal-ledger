@@ -1,24 +1,22 @@
 #!/bin/sh
 # Project-local installer/updater for Goal Ledger.
-# Installs the Goal Ledger rule and skill family.
+# Downloads one complete source archive, validates it, and installs from it.
 
 set -eu
 
-GOAL_LEDGER_REPO="jpbaking/goal-ledger"
+GOAL_LEDGER_REPO="${GOAL_LEDGER_REPO:-jpbaking/goal-ledger}"
 GOAL_LEDGER_REF="${GOAL_LEDGER_REF:-main}"
-CONTENT_BASE="https://raw.githubusercontent.com/$GOAL_LEDGER_REPO/$GOAL_LEDGER_REF"
 TARGET_ROOT="${1:-.}"
+STAGING_ROOT=""
+SOURCE_ROOT=""
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-if command -v curl >/dev/null 2>&1; then
-  fetch() { mkdir -p "$(dirname "$2")"; curl -fsSL "$1" -o "$2"; }
-elif command -v wget >/dev/null 2>&1; then
-  fetch() { mkdir -p "$(dirname "$2")"; wget -q -O "$2" "$1"; }
-else
-  die "Neither curl nor wget found."
-fi
+cleanup() {
+  [ -z "$STAGING_ROOT" ] || [ ! -d "$STAGING_ROOT" ] || rm -rf "$STAGING_ROOT"
+}
+trap cleanup 0 HUP INT TERM
 
 ask() {
   question="$1"; default="${2:-n}"
@@ -47,91 +45,102 @@ decide() {
   case "$1" in
     1) return 0 ;;
     0) return 1 ;;
-    *) ask "$2" "$3" ;;
+    "") ask "$2" "$3" ;;
+    *) die "Expected 1 or 0 for $4; got '$1'." ;;
   esac
 }
 
+download() {
+  if [ -f "$1" ]; then
+    cp "$1" "$2"
+  elif command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$1" -o "$2"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$2" "$1"
+  else
+    die "Neither curl nor wget found."
+  fi
+}
+
+prepare_source() {
+  if [ -n "${GOAL_LEDGER_SOURCE:-}" ]; then
+    [ -d "$GOAL_LEDGER_SOURCE" ] || die "GOAL_LEDGER_SOURCE '$GOAL_LEDGER_SOURCE' is not a directory."
+    SOURCE_ROOT="$GOAL_LEDGER_SOURCE"
+    say "source: local directory $SOURCE_ROOT"
+    return
+  fi
+
+  command -v unzip >/dev/null 2>&1 || die "unzip is required to install the GitHub project archive."
+  STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/goal-ledger-install.XXXXXX")"
+  archive="$STAGING_ROOT/source.zip"
+  extracted="$STAGING_ROOT/source"
+  mkdir -p "$extracted"
+  encoded_ref="$(printf '%s' "$GOAL_LEDGER_REF" | sed 's|/|%2F|g')"
+  archive_url="${GOAL_LEDGER_ARCHIVE_URL:-https://api.github.com/repos/$GOAL_LEDGER_REPO/zipball/$encoded_ref}"
+  say "source: github.com/$GOAL_LEDGER_REPO@$GOAL_LEDGER_REF"
+  download "$archive_url" "$archive"
+  unzip -q "$archive" -d "$extracted"
+  set -- "$extracted"/*
+  [ "$#" -eq 1 ] && [ -d "$1" ] || die "Downloaded archive did not contain exactly one project directory."
+  SOURCE_ROOT="$1"
+}
+
+validate_source() {
+  [ -f "$SOURCE_ROOT/rules/goal-ledger.md" ] || die "Source is missing rules/goal-ledger.md."
+  [ -f "$SOURCE_ROOT/skills/goal-ledger/scripts/validate_goal_ledger.py" ] || \
+    die "Source is missing the Goal Ledger validator script."
+  for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
+    skill_file="$SOURCE_ROOT/skills/$skill/SKILL.md"
+    [ -f "$skill_file" ] || die "Source is missing skills/$skill/SKILL.md."
+    skill_name="$(sed -n 's/^name:[[:space:]]*//p' "$skill_file" | head -n 1)"
+    [ "$skill_name" = "$skill" ] || die "Skill name '$skill_name' does not match directory '$skill'."
+    grep -q '^description:' "$skill_file" || die "Skill '$skill' has no description."
+  done
+}
+
+install_file() {
+  file_source="$1"; file_destination="$TARGET_ROOT/$2"
+  file_parent="$(dirname "$file_destination")"
+  file_incoming="$file_destination.goal-ledger-install.$$"
+  file_backup="$file_destination.goal-ledger-backup.$$"
+  mkdir -p "$file_parent"
+  [ ! -d "$file_destination" ] || die "Expected file destination but found directory: $file_destination"
+  cp "$file_source" "$file_incoming"
+  if [ -e "$file_destination" ]; then mv "$file_destination" "$file_backup"; fi
+  if mv "$file_incoming" "$file_destination"; then
+    [ ! -e "$file_backup" ] || rm -f "$file_backup"
+  else
+    [ ! -e "$file_backup" ] || mv "$file_backup" "$file_destination"
+    die "Could not install $file_destination."
+  fi
+}
+
+install_tree() {
+  tree_source="$1"; tree_destination="$TARGET_ROOT/$2"
+  tree_parent="$(dirname "$tree_destination")"
+  tree_incoming="$tree_destination.goal-ledger-install.$$"
+  tree_backup="$tree_destination.goal-ledger-backup.$$"
+  mkdir -p "$tree_parent"
+  [ ! -e "$tree_incoming" ] || die "Temporary installation path already exists: $tree_incoming"
+  cp -R "$tree_source" "$tree_incoming"
+  if [ -e "$tree_destination" ]; then mv "$tree_destination" "$tree_backup"; fi
+  if mv "$tree_incoming" "$tree_destination"; then
+    [ ! -e "$tree_backup" ] || rm -rf "$tree_backup"
+  else
+    [ ! -e "$tree_backup" ] || mv "$tree_backup" "$tree_destination"
+    die "Could not install $tree_destination."
+  fi
+}
+
 install_rule() {
-  destination="$1"
-  fetch "$CONTENT_BASE/rules/goal-ledger.md" "$TARGET_ROOT/$destination/goal-ledger.md"
+  install_file "$SOURCE_ROOT/rules/goal-ledger.md" "$1/goal-ledger.md"
 }
 
 install_skills() {
-  destination="$1"
+  skills_destination="$1"
   for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
-    fetch "$CONTENT_BASE/skills/$skill/SKILL.md" \
-      "$TARGET_ROOT/$destination/$skill/SKILL.md"
+    install_tree "$SOURCE_ROOT/skills/$skill" "$skills_destination/$skill"
   done
-}
-
-remove_file() {
-  [ ! -f "$TARGET_ROOT/$1" ] || rm -f "$TARGET_ROOT/$1"
-}
-
-remove_tree() {
-  [ ! -d "$TARGET_ROOT/$1" ] || rm -rf "$TARGET_ROOT/$1"
-}
-
-cleanup_legacy_adapters() {
-  for root in .agents .claude; do
-    for component in core compose-helper dox lazyway-io-design master-plan; do
-      remove_file "$root/rules/$component.md"
-      remove_tree "$root/skills/$component"
-    done
-    for skill in dox-audit dox-child dox-fix dox-init dox-upgrade \
-                 master-plan-resume master-plan-status master-plan-clear; do
-      remove_tree "$root/skills/$skill"
-    done
-    for wrapper in compose-helper dox-audit dox-child dox-fix dox-init dox-upgrade \
-                   lazyway-io-design master-plan master-plan-resume master-plan-status \
-                   master-plan-clear; do
-      remove_file "$root/commands/$wrapper.md"
-      remove_file "$root/workflows/$wrapper.md"
-    done
-  done
-
-  for component in 00-core-reasoning-rules core compose-helper dox lazyway-io-design master-plan plan-execute; do
-    remove_file ".clinerules/$component.md"
-  done
-  for skill in compose-helper dox-audit dox-child dox-fix dox-init dox-upgrade \
-               lazyway-io-design master-plan master-plan-resume master-plan-status \
-               master-plan-clear plan-execute; do
-    remove_tree ".cline/skills/$skill"
-    remove_file ".clinerules/workflows/$skill.md"
-  done
-}
-
-remove_claude_legacy_imports() {
-  file="$TARGET_ROOT/CLAUDE.md"
-  [ -f "$file" ] || return 0
-  tmp_file="$(mktemp)"
-  awk '
-    $0 == "@.claude/rules/core.md" { next }
-    $0 == "@.claude/rules/compose-helper.md" { next }
-    $0 == "@.claude/rules/dox.md" { next }
-    $0 == "@.claude/rules/lazyway-io-design.md" { next }
-    $0 == "@.claude/rules/master-plan.md" { next }
-    { print }
-  ' "$file" > "$tmp_file"
-  if ! cmp -s "$file" "$tmp_file"; then mv "$tmp_file" "$file"; else rm -f "$tmp_file"; fi
-}
-
-migrate_agents_pointer() {
-  file="$TARGET_ROOT/AGENTS.md"
-  [ -f "$file" ] || return 0
-  tmp_file="$(mktemp)"
-  awk '
-    $0 == "## Agent rules (lazyway-io boilerplate)" {
-      print "## Goal Ledger"
-      next
-    }
-    $0 == "Read and follow `core.md` and `master-plan.md` in `.agents/rules/`." {
-      print "Read and follow every Markdown file in `.agents/rules/`."
-      next
-    }
-    { print }
-  ' "$file" > "$tmp_file"
-  if ! cmp -s "$file" "$tmp_file"; then mv "$tmp_file" "$file"; else rm -f "$tmp_file"; fi
 }
 
 check_legacy_active_plan() {
@@ -139,52 +148,134 @@ check_legacy_active_plan() {
   [ -f "$file" ] || return 0
   status="$(sed -n 's/^- Plan status: //p' "$file" | head -n 1)"
   if [ "$status" != "done" ]; then
-    die "An unfinished legacy MASTER-PLAN exists in .tmp-agent-scratch/ (status: ${status:-unknown}). Resume, finish, abandon, or migrate it before upgrading; no files were changed."
+    die "An unfinished legacy MASTER-PLAN exists in .tmp-agent-scratch/ (status: ${status:-unknown}). Resume, finish, abandon, or migrate it before installing; no files were changed."
   fi
-  say "NOTE: completed legacy .tmp-agent-scratch/ left untouched; .goal-ledger/ is used for new goals."
+  say "NOTE: completed legacy .tmp-agent-scratch/ left untouched."
 }
 
-allow_agents_for_cline() {
+inspect_same_named_artifacts() {
+  for path in \
+    .agents/rules/master-plan.md .claude/rules/master-plan.md .clinerules/master-plan.md \
+    .agents/skills/master-plan .agents/skills/master-plan-resume \
+    .agents/skills/master-plan-status .agents/skills/master-plan-clear \
+    .claude/skills/master-plan .claude/skills/master-plan-resume \
+    .claude/skills/master-plan-status .claude/skills/master-plan-clear \
+    .cline/skills/master-plan .cline/skills/master-plan-resume \
+    .cline/skills/master-plan-status .cline/skills/master-plan-clear \
+    .claude/commands/master-plan.md .claude/commands/master-plan-resume.md \
+    .claude/commands/master-plan-status.md .claude/commands/master-plan-clear.md \
+    .clinerules/workflows/master-plan.md .clinerules/workflows/master-plan-resume.md \
+    .clinerules/workflows/master-plan-status.md .clinerules/workflows/master-plan-clear.md; do
+    if [ -e "$TARGET_ROOT/$path" ]; then
+      say "NOTE: existing $path is not owned by this installer and will be left untouched."
+    fi
+  done
+
+  for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
+    for root in .agents .claude; do
+      if [ -e "$TARGET_ROOT/$root/skills/$skill" ]; then
+        say "NOTE: existing $root/skills/$skill is a same-named installation destination and will be refreshed if selected."
+      fi
+    done
+    if [ -e "$TARGET_ROOT/.cline/skills/$skill" ]; then
+      say "WARNING: existing .cline/skills/$skill is left untouched and may duplicate .agents/skills/$skill in Cline."
+    fi
+  done
+
+  for root in .agents .claude; do
+    if [ -e "$TARGET_ROOT/$root/rules/goal-ledger.md" ]; then
+      say "NOTE: existing $root/rules/goal-ledger.md is a same-named installation destination and will be refreshed if selected."
+    fi
+  done
+}
+
+inspect_global_collisions() {
+  [ -n "${HOME:-}" ] || return 0
+  for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
+    for root in \
+      "$HOME/.agents/skills" "$HOME/.cline/skills" "$HOME/.claude/skills" \
+      "$HOME/.gemini/skills" "$HOME/.gemini/config/skills"; do
+      if [ -e "$root/$skill" ]; then
+        say "WARNING: global $root/$skill may shadow or duplicate the project skill; verify the selected harness resolves the project adapter."
+      fi
+    done
+  done
+}
+
+ensure_agents_pointer() {
+  file="$TARGET_ROOT/AGENTS.md"
+  if [ -f "$file" ] && grep -qF '.agents/rules/goal-ledger.md' "$file"; then return; fi
+  cat >> "$file" <<'EOF'
+
+## Goal Ledger
+
+Read and follow `.agents/rules/goal-ledger.md`.
+Reusable procedures live in `.agents/skills/`; use the matching skill when its
+description applies.
+EOF
+}
+
+ensure_gemini_pointer() {
+  file="$TARGET_ROOT/GEMINI.md"
+  if [ ! -f "$file" ]; then printf '%s\n\n' '# Project context' > "$file"; fi
+  grep -qxF '@.agents/rules/goal-ledger.md' "$file" 2>/dev/null || \
+    printf '%s\n' '@.agents/rules/goal-ledger.md' >> "$file"
+}
+
+warn_clineignore() {
   file="$TARGET_ROOT/.clineignore"
   [ -f "$file" ] || return 0
-  tmp_file="$(mktemp)"
-  grep -vxF '.agents/' "$file" > "$tmp_file" || true
-  if ! cmp -s "$file" "$tmp_file"; then mv "$tmp_file" "$file"; else rm -f "$tmp_file"; fi
+  pattern="$(sed -n '/^[[:space:]]*[#!]/d; /^[[:space:]]*$/d; /\.agents/p' "$file" | head -n 1)"
+  if [ -n "$pattern" ]; then
+    say "WARNING: .clineignore pattern '$pattern' may restrict access to the canonical .agents content; it was preserved. Review the rule and verify Cline can load and use Goal Ledger."
+  fi
+}
+
+warn_redundant_claude_import() {
+  file="$TARGET_ROOT/CLAUDE.md"
+  [ -f "$file" ] || return 0
+  if grep -qxF '@.claude/rules/goal-ledger.md' "$file"; then
+    say "WARNING: CLAUDE.md imports @.claude/rules/goal-ledger.md, which Claude also auto-discovers in .claude/rules. The existing line was preserved; remove it after review to avoid redundant guidance."
+  fi
+}
+
+verify_overlapping_skill_copies() {
+  [ "$cline_on" = "1" ] && [ "$claude_on" = "1" ] || return 0
+  for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
+    diff -qr "$TARGET_ROOT/.agents/skills/$skill" "$TARGET_ROOT/.claude/skills/$skill" >/dev/null || \
+      die "Overlapping Cline/Claude adapters differ for skill '$skill'."
+  done
+  say "NOTE: Cline and Claude require overlapping discovery adapters. Copies are byte-identical; confirm Cline's skill list exposes each Goal Ledger name once."
 }
 
 [ -d "$TARGET_ROOT" ] || die "Target directory '$TARGET_ROOT' does not exist."
 
 say "Goal Ledger — installer"
-say "source: github.com/$GOAL_LEDGER_REPO@$GOAL_LEDGER_REF"
 say "target: $TARGET_ROOT"
 say ""
 say "==> Which agent harnesses should this project support?"
-cline_on=1;  decide "${WITH_CLINE:-}"  "    Cline (AGENTS.md + .agents/skills)?" y || cline_on=0
-claude_on=1; decide "${WITH_CLAUDE:-}" "    Claude Code (CLAUDE.md + .claude/)?" y || claude_on=0
-agents_on=1; decide "${WITH_AGENTS:-}" "    Codex / Antigravity / Gemini (AGENTS.md + .agents/)?" y || agents_on=0
-[ "$cline_on$claude_on$agents_on" != "000" ] || die "Nothing selected — nothing to do."
+cline_on=1;  decide "${WITH_CLINE:-}"  "    Cline (AGENTS.md + .agents/skills)?" y WITH_CLINE || cline_on=0
+claude_on=1; decide "${WITH_CLAUDE:-}" "    Claude Code (.claude/rules + .claude/skills)?" y WITH_CLAUDE || claude_on=0
+agents_on=1; decide "${WITH_AGENTS:-}" "    Codex / Antigravity (AGENTS.md + .agents/)?" y WITH_AGENTS || agents_on=0
+gemini_value="${WITH_GEMINI-${WITH_AGENTS:-}}"
+gemini_on=1; decide "$gemini_value" "    Gemini CLI (GEMINI.md + .agents/skills)?" y WITH_GEMINI || gemini_on=0
+[ "$cline_on$claude_on$agents_on$gemini_on" != "0000" ] || die "Nothing selected — nothing to do."
 say ""
 
 check_legacy_active_plan
+prepare_source
+validate_source
+inspect_same_named_artifacts
+inspect_global_collisions
 
-if [ "$cline_on" = "1" ] || [ "$agents_on" = "1" ]; then
-  say "==> Shared AGENTS convention — Goal Ledger"
+if [ "$cline_on" = "1" ] || [ "$agents_on" = "1" ] || [ "$gemini_on" = "1" ]; then
+  say "==> Shared .agents convention — Goal Ledger"
   install_rule ".agents/rules"
   install_skills ".agents/skills"
-
-  AGENTS_MD="$TARGET_ROOT/AGENTS.md"
-  if ! grep -qF '.agents/rules/' "$AGENTS_MD" 2>/dev/null; then
-    cat >> "$AGENTS_MD" <<'EOF'
-
-## Goal Ledger
-
-Read and follow every Markdown file in `.agents/rules/`.
-Reusable procedures live in `.agents/skills/`; use the matching skill when its
-description applies.
-EOF
-  fi
-  [ "$cline_on" != "1" ] || allow_agents_for_cline
-  say "    installed .agents/{rules,skills} and preserved AGENTS.md"
+  [ "$cline_on" != "1" ] || warn_clineignore
+  if [ "$cline_on" = "1" ] || [ "$agents_on" = "1" ]; then ensure_agents_pointer; fi
+  [ "$gemini_on" != "1" ] || ensure_gemini_pointer
+  say "    installed .agents/{rules,skills} and preserved root instruction files"
   say ""
 fi
 
@@ -192,22 +283,14 @@ if [ "$claude_on" = "1" ]; then
   say "==> Claude Code — Goal Ledger"
   install_rule ".claude/rules"
   install_skills ".claude/skills"
-
-  CLAUDE_MD="$TARGET_ROOT/CLAUDE.md"
-  if [ ! -f "$CLAUDE_MD" ]; then
-    printf '%s\n\n' '# Project rules' > "$CLAUDE_MD"
-  fi
-  grep -qxF '@.claude/rules/goal-ledger.md' "$CLAUDE_MD" 2>/dev/null || \
-    printf '%s\n' '@.claude/rules/goal-ledger.md' >> "$CLAUDE_MD"
-  say "    installed .claude/{rules,skills} and preserved CLAUDE.md"
+  warn_redundant_claude_import
+  say "    installed auto-discovered .claude/{rules,skills} and preserved CLAUDE.md"
   say ""
 fi
 
-cleanup_legacy_adapters
-remove_claude_legacy_imports
-migrate_agents_pointer
+verify_overlapping_skill_copies
 
 say "Done. Installed the Goal Ledger rule and skill family into: $TARGET_ROOT"
-say "Previously installed compose-helper scripts and DOX content inside AGENTS.md are left untouched; remove them manually if no longer wanted."
+say "Unrelated and legacy files were inspected but left untouched."
 say "Ask your agent to use the goal-ledger skill for multi-phase work."
 say "https://github.com/$GOAL_LEDGER_REPO#readme"

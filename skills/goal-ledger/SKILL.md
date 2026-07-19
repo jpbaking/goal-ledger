@@ -90,6 +90,7 @@ Invariants:
 - The phase file's `Status:` is authoritative; the matching bracketed line in `GOAL.md` mirrors it. Repair mismatches in favor of the phase file.
 - Every phase and sub-task has an observable "done when" check.
 - Use 2–7 phases with 2–7 sub-tasks each. Add new numbered phases or sub-tasks; never renumber existing ones.
+- A skipped phase satisfies dependencies only after verifying that its outputs are unnecessary or updating future todo phases accordingly. Record the reason in both the phase status and logs. Skip a whole phase only with explicit user approval or when verified evidence makes it unnecessary.
 - Update `Handoff` whenever execution changes position, evidence, next action, or blockers. It must let a new agent continue without the conversation.
 - Append important events and decisions to logs. Never rewrite history to make a failed attempt disappear.
 - Do not store a moving `HEAD` hash in `GOAL.md`. The immutable baseline and Git history are authoritative; a commit cannot reliably record its own hash.
@@ -103,7 +104,9 @@ For a repository:
 
 - **Clean start:** before preparing Git, classify `git status --porcelain`. Changes inside `.goal-ledger/` are expected planning state. Any other pre-existing change must be resolved by the user: commit it, explicitly authorize a baseline snapshot commit, stash it, or stop. Never absorb unrelated work into the goal.
 - **Immutable baseline:** record the full `HEAD` before the first Goal Ledger commit. Every goal commit lives strictly after this baseline.
+- **Unborn repository:** if the repository has no `HEAD` commit, stop at Gate B. Ask the user to create an initial commit or explicitly authorize a baseline snapshot commit; never invent a zero SHA, silently initialize history, or continue without an immutable baseline.
 - **Recommended isolated branch:** recommend `goal/<goal-id>`. Ask before creating or switching branches. Record the original branch as `Starting branch` and the goal branch as `Work branch`. From a detached `HEAD`, require creation of a named goal branch or stop for user direction; `current-branch` is not valid without a branch.
+- **Existing goal branch:** if the proposed work branch already exists, inspect it before switching. Reuse it only when it belongs to the same unfinished Goal ID and its history is consistent with the baseline. Otherwise ask the user to choose it deliberately or select a new suffixed Goal ID and branch; never reset or overwrite it.
 - **Current-branch fallback:** if the user declines a goal branch, warn that shared or interleaved history can make automatic squashing unavailable. Record both branch fields as the current branch and use `Strategy: current-branch`.
 - **Upstream snapshots:** before switching, record the starting branch's upstream ref and full SHA without fetching, or `none`. After choosing the work branch, record its upstream the same way. For `current-branch`, the two snapshots are identical; for a new isolated branch, the work upstream is normally `none`.
 - **Commit identity:** every framework-created commit after the baseline has a `Goal-ID: <goal-id>` trailer. Phase commits also have `Goal-Phase: phase-NNNN`. Git history, not hashes copied into the ledger, is the commit ledger.
@@ -131,6 +134,8 @@ If any check fails, keep the commits and explain why. If all pass and the user e
 3. If no ledger exists, create `.goal-ledger/GOAL.md` with status `drafting` and every phase file. Do not change application code.
 4. If an older ledger is `completed` or `abandoned`, preserve it until the new plan is approved. Draft the proposed replacement in the conversation or a temporary location outside the project, then write it into `.goal-ledger/` only after Gate A. The new goal's first commit records the replacement, leaving the previous ledger in Git history.
 
+Run the bundled `scripts/validate_goal_ledger.py --root <project root> --no-git` after drafting. If Python 3 is unavailable, check every invariant in section 2 manually and report that deterministic validation was unavailable.
+
 ## 5. Approval and Git preparation gates
 
 **Gate A — approve the goal:** show Outcome, Done when, and the one-line phase list. Ask for approval. Apply feedback to the ledger and repeat until approved, then set status `approved` and update Handoff.
@@ -141,15 +146,17 @@ If any check fails, keep the commits and explain why. If all pass and the user e
 
 ## 6. Execution loop
 
-1. Select the first `[todo]` phase whose dependencies are all `[done]`.
+1. Select the first `[todo]` phase whose dependencies are all `[done]` or safely `[skipped]` under section 2.
 2. Set Goal status `executing`; set the phase file to `Status: ongoing` and its `GOAL.md` mirror to `[ongoing]`; update Handoff and logs; create the committed recovery marker from section 3.
 3. For each sub-task: mark `[ongoing]` before work; perform it; run its check; immediately mark `[done]`, `[skipped] — reason:`, or after two failed attempts `[needs-human] — reason:`; update the phase Log and Handoff.
 4. Run the phase-level check. If it fails, add a fix-up sub-task. After two failed fix-up rounds, mark the phase `needs-human`.
-5. Review the overall Goal and remaining phases. Amend only future `[todo]` phases, logging why.
+5. Review the overall Goal and remaining phases. Amend only future `[todo]` phases, logging why. Skip an entire phase only under the skip rule in section 2.
 6. Close and commit the phase under section 3. If nothing actionable remains, include Goal status `blocked-on-human` in that close commit (or create a blocked-state commit if no phase was closed), then stop.
 7. At a phase boundary, compact context if useful, then re-anchor from `GOAL.md`, the next phase file, and Git. After uncertain or interrupted state, use `goal-ledger-resume`.
 8. Continue without asking between phases. When every phase is terminal and none needs human, set Goal status `awaiting-acceptance`, update Handoff, include that state in the final phase commit, report, and ask the user to review the result.
 9. After acceptance, apply the optional squash procedure or create the completion commit. Do not delete the ledger.
+
+Run the bundled validator without `--no-git` after reconciliation, before each phase close, and before acceptance. Treat errors as blockers; record warnings that affect handoff or squash safety. If Python 3 is unavailable, perform the same checks manually and say so in the report.
 
 ## 7. Report when execution stops
 

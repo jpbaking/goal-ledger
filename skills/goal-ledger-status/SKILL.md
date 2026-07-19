@@ -17,6 +17,8 @@ Read sections 1–3 of the sibling `goal-ledger` skill. If `.goal-ledger/GOAL.md
 
 Read `GOAL.md` and every phase file. When `Repository: yes`, read the current branch, worktree status, and `git log <baseline>..HEAD` with trailers. Report:
 
+Run the validator bundled with the sibling `goal-ledger` skill in read-only mode as `scripts/validate_goal_ledger.py --root <project root>`. Include its errors and warnings in the report. If Python 3 is unavailable, perform the same read-only checks manually.
+
 ```text
 Goal: <title> — <goal status>
 Goal ID: <id>
