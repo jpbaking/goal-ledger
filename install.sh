@@ -281,8 +281,8 @@ ensure_gitignore() {
     say "NOTE: kept existing .gitignore Goal Ledger block"
     return
   fi
+  if [ -s "$file" ]; then printf '\n' >> "$file"; fi
   {
-    [ -s "$file" ] && printf '\n'
     printf '%s\n' "$gi_mark"
     for skill in goal-ledger goal-ledger-resume goal-ledger-status goal-ledger-abandon; do
       printf '.agents/skills/%s/\n.claude/skills/%s/\n' "$skill" "$skill"
