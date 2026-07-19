@@ -8,11 +8,10 @@
     $GoalLedgerRepo = if ($env:GOAL_LEDGER_REPO) { $env:GOAL_LEDGER_REPO } else { 'jpbaking/goal-ledger' }
     $GoalLedgerRef = if ($env:GOAL_LEDGER_REF) { $env:GOAL_LEDGER_REF } else { 'main' }
     $TargetRoot = if ($env:GOAL_LEDGER_TARGET) { $env:GOAL_LEDGER_TARGET } else { (Get-Location).Path }
-    $StagingRoot = $null
     $SourceRoot = $null
     $Failure = $null
-    $ActiveIncoming = $null
-    $ActiveBackup = $null
+    $StagingState = @{ Root = $null }
+    $SwapState = @{ Incoming = $null; Backup = $null }
 
     function Say([string]$Message) { Write-Host $Message }
 
@@ -121,7 +120,7 @@
         }
 
         $NewStagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("goal-ledger-install-" + [Guid]::NewGuid().ToString('N'))
-        Set-Variable -Name StagingRoot -Value $NewStagingRoot -Scope 1
+        $StagingState.Root = $NewStagingRoot
         $Archive = Join-Path $NewStagingRoot 'source.zip'
         $Extracted = Join-Path $NewStagingRoot 'source'
         New-Item -ItemType Directory -Path $Extracted -Force | Out-Null
@@ -165,19 +164,19 @@
         if (Test-Path -LiteralPath $Destination -PathType Container) { throw "Expected file destination but found directory: $Destination" }
         if (Test-Path -LiteralPath $Incoming) { throw "Temporary installation path already exists: $Incoming" }
         if (Test-Path -LiteralPath $Backup) { throw "Temporary backup path already exists: $Backup" }
-        Set-Variable -Name ActiveIncoming -Value $Incoming -Scope 1
-        Set-Variable -Name ActiveBackup -Value $Backup -Scope 1
+        $SwapState.Incoming = $Incoming
+        $SwapState.Backup = $Backup
         Copy-Item -LiteralPath $SourceFile -Destination $Incoming
         if (Test-Path -LiteralPath $Destination) { Move-Item -LiteralPath $Destination -Destination $Backup }
         try {
             Move-Item -LiteralPath $Incoming -Destination $Destination
             if (Test-Path -LiteralPath $Backup) { Remove-Item -LiteralPath $Backup -Force }
-            Set-Variable -Name ActiveIncoming -Value $null -Scope 1
-            Set-Variable -Name ActiveBackup -Value $null -Scope 1
+            $SwapState.Incoming = $null
+            $SwapState.Backup = $null
         }
         catch {
             if (Test-Path -LiteralPath $Backup) { Move-Item -LiteralPath $Backup -Destination $Destination }
-            Set-Variable -Name ActiveBackup -Value $null -Scope 1
+            $SwapState.Backup = $null
             throw
         }
     }
@@ -190,19 +189,19 @@
         if (-not (Test-Path -LiteralPath $Parent)) { New-Item -ItemType Directory -Path $Parent -Force | Out-Null }
         if (Test-Path -LiteralPath $Incoming) { throw "Temporary installation path already exists: $Incoming" }
         if (Test-Path -LiteralPath $Backup) { throw "Temporary backup path already exists: $Backup" }
-        Set-Variable -Name ActiveIncoming -Value $Incoming -Scope 1
-        Set-Variable -Name ActiveBackup -Value $Backup -Scope 1
+        $SwapState.Incoming = $Incoming
+        $SwapState.Backup = $Backup
         Copy-Item -LiteralPath $SourceTree -Destination $Incoming -Recurse
         if (Test-Path -LiteralPath $Destination) { Move-Item -LiteralPath $Destination -Destination $Backup }
         try {
             Move-Item -LiteralPath $Incoming -Destination $Destination
             if (Test-Path -LiteralPath $Backup) { Remove-Item -LiteralPath $Backup -Recurse -Force }
-            Set-Variable -Name ActiveIncoming -Value $null -Scope 1
-            Set-Variable -Name ActiveBackup -Value $null -Scope 1
+            $SwapState.Incoming = $null
+            $SwapState.Backup = $null
         }
         catch {
             if (Test-Path -LiteralPath $Backup) { Move-Item -LiteralPath $Backup -Destination $Destination }
-            Set-Variable -Name ActiveBackup -Value $null -Scope 1
+            $SwapState.Backup = $null
             throw
         }
     }
@@ -384,14 +383,14 @@
         $Failure = $_
     }
     finally {
-        if ($ActiveIncoming -and (Test-Path -LiteralPath $ActiveIncoming)) {
-            Remove-Item -LiteralPath $ActiveIncoming -Recurse -Force
+        if ($SwapState.Incoming -and (Test-Path -LiteralPath $SwapState.Incoming)) {
+            Remove-Item -LiteralPath $SwapState.Incoming -Recurse -Force
         }
-        if ($ActiveBackup -and (Test-Path -LiteralPath $ActiveBackup)) {
-            Say "WARNING: interrupted install backup left at $ActiveBackup"
+        if ($SwapState.Backup -and (Test-Path -LiteralPath $SwapState.Backup)) {
+            Say "WARNING: interrupted install backup left at $($SwapState.Backup)"
         }
-        if ($StagingRoot -and (Test-Path -LiteralPath $StagingRoot)) {
-            Remove-Item -LiteralPath $StagingRoot -Recurse -Force
+        if ($StagingState.Root -and (Test-Path -LiteralPath $StagingState.Root)) {
+            Remove-Item -LiteralPath $StagingState.Root -Recurse -Force
         }
     }
     if ($Failure) {
