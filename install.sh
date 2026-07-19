@@ -93,7 +93,7 @@ prepare_source() {
   archive="$STAGING_ROOT/source.zip"
   extracted="$STAGING_ROOT/source"
   mkdir -p "$extracted"
-  encoded_ref="$(printf '%s' "$GOAL_LEDGER_REF" | sed 's|/|%2F|g')"
+  encoded_ref="$(printf '%s' "$GOAL_LEDGER_REF" | sed 's|%|%25|g; s|/|%2F|g')"
   archive_url="${GOAL_LEDGER_ARCHIVE_URL:-https://api.github.com/repos/$GOAL_LEDGER_REPO/zipball/$encoded_ref}"
   say "source: github.com/$GOAL_LEDGER_REPO@$GOAL_LEDGER_REF"
   download "$archive_url" "$archive"
@@ -236,6 +236,7 @@ inspect_global_collisions() {
 ensure_agents_pointer() {
   file="$TARGET_ROOT/AGENTS.md"
   if [ -f "$file" ] && grep -qF '.agents/rules/goal-ledger.md' "$file"; then return; fi
+  if [ ! -f "$file" ]; then printf '%s\n' '# Project rules' > "$file"; fi
   if [ -s "$file" ] && [ "$(tail -c 1 "$file" | wc -l | tr -d ' ')" -eq 0 ]; then
     printf '\n' >> "$file"
   fi
@@ -294,8 +295,12 @@ say "==> Which agent harnesses should this project support?"
 cline_on=1;  decide "${WITH_CLINE:-}"  "    Cline (AGENTS.md + .agents/skills)?" y WITH_CLINE || cline_on=0
 claude_on=1; decide "${WITH_CLAUDE:-}" "    Claude Code (.claude/rules + .claude/skills)?" y WITH_CLAUDE || claude_on=0
 agents_on=1; decide "${WITH_AGENTS:-}" "    Codex / Antigravity (AGENTS.md + .agents/)?" y WITH_AGENTS || agents_on=0
-gemini_value="${WITH_GEMINI-${WITH_AGENTS:-}}"
-gemini_on=1; decide "$gemini_value" "    Gemini CLI (GEMINI.md + .agents/skills)?" y WITH_GEMINI || gemini_on=0
+if [ "${WITH_GEMINI+x}" = "x" ]; then
+  gemini_value="$WITH_GEMINI"; gemini_variable=WITH_GEMINI
+else
+  gemini_value="${WITH_AGENTS:-}"; gemini_variable=WITH_AGENTS
+fi
+gemini_on=1; decide "$gemini_value" "    Gemini CLI (GEMINI.md + .agents/skills)?" y "$gemini_variable" || gemini_on=0
 [ "$cline_on$claude_on$agents_on$gemini_on" != "0000" ] || die "Nothing selected — nothing to do."
 say ""
 

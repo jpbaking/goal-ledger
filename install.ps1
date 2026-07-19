@@ -22,14 +22,16 @@
             return $true
         }
         $Hint = if ($Default -eq 'y') { '[Y/n]' } else { '[y/N]' }
-        try { $Answer = Read-Host "$Question $Hint" }
-        catch {
-            Say "$Question [no terminal -- defaulting to $Default]"
-            return ($Default -eq 'y')
+        while ($true) {
+            try { $Answer = Read-Host "$Question $Hint" }
+            catch {
+                Say "$Question [no terminal -- defaulting to $Default]"
+                return ($Default -eq 'y')
+            }
+            if ($Answer -match '^(y|Y|yes|YES)$') { return $true }
+            if ($Answer -match '^(n|N|no|NO)$') { return $false }
+            if (-not $Answer) { return ($Default -eq 'y') }
         }
-        if ($Answer -match '^(y|Y|yes|YES)$') { return $true }
-        if ($Answer -match '^(n|N|no|NO)$') { return $false }
-        return ($Default -eq 'y')
     }
 
     function Decide([string]$Value, [string]$Question, [string]$Default, [string]$VariableName) {
@@ -333,8 +335,15 @@
         $ClineOn = Decide $env:WITH_CLINE '    Cline (AGENTS.md + .agents/skills)?' 'y' 'WITH_CLINE'
         $ClaudeOn = Decide $env:WITH_CLAUDE '    Claude Code (.claude/rules + .claude/skills)?' 'y' 'WITH_CLAUDE'
         $AgentsOn = Decide $env:WITH_AGENTS '    Codex / Antigravity (AGENTS.md + .agents/)?' 'y' 'WITH_AGENTS'
-        $GeminiValue = if (Test-Path Env:WITH_GEMINI) { $env:WITH_GEMINI } else { $env:WITH_AGENTS }
-        $GeminiOn = Decide $GeminiValue '    Gemini CLI (GEMINI.md + .agents/skills)?' 'y' 'WITH_GEMINI'
+        if (Test-Path Env:WITH_GEMINI) {
+            $GeminiValue = $env:WITH_GEMINI
+            $GeminiVariable = 'WITH_GEMINI'
+        }
+        else {
+            $GeminiValue = $env:WITH_AGENTS
+            $GeminiVariable = 'WITH_AGENTS'
+        }
+        $GeminiOn = Decide $GeminiValue '    Gemini CLI (GEMINI.md + .agents/skills)?' 'y' $GeminiVariable
         if (-not ($ClineOn -or $ClaudeOn -or $AgentsOn -or $GeminiOn)) { throw 'Nothing selected -- nothing to do.' }
         Say ''
 

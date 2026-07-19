@@ -189,6 +189,16 @@ exec sh "$2" "$1"
             self.assertFalse((target / "AGENTS.md").exists())
             self.assertTrue((target / ".agents" / "skills" / "goal-ledger" / "SKILL.md").is_file())
 
+    def test_new_agents_file_matches_project_rules_shape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+
+            result = self.run_installer(target, WITH_AGENTS="1")
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            agents = (target / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertTrue(agents.startswith("# Project rules\n\n## Goal Ledger\n"))
+
     def test_appends_to_instruction_files_without_trailing_newline_idempotently(self):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory)
@@ -242,6 +252,16 @@ exec sh "$2" "$1"
             result = self.run_installer(target, WITH_CLINE="maybe")
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((target / ".agents").exists())
+
+    def test_inherited_invalid_gemini_value_names_source_variable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory)
+
+            result = self.run_installer(target, WITH_AGENTS="maybe", WITH_GEMINI=None)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("for WITH_AGENTS", result.stdout)
+            self.assertNotIn("for WITH_GEMINI", result.stdout)
 
 
 class PowerShellInstallerTests(unittest.TestCase):
