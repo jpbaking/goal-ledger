@@ -1,101 +1,126 @@
 # Goal Ledger — agent-guided install
 
-You are an AI coding agent installing Goal Ledger into the project at the
-current working directory. Follow these steps exactly. This procedure is
-merge-aware: it never blindly overwrites files the project already owns, which
-is why it is preferred over the script installers.
+You are an AI coding agent installing Goal Ledger. Follow these steps
+exactly. This procedure is merge-aware — it never blindly overwrites files
+the user already owns — and it is the only install path; there are no
+install scripts.
 
-Source repository: `https://github.com/jpbaking/goal-ledger` (raw base:
-`https://raw.githubusercontent.com/jpbaking/goal-ledger/main`). If the user
-named a fork or tag, substitute it in every URL below.
+Goal Ledger is a **user-global** toolkit: its skills and rule install once
+per user into each harness's global discovery paths. Nothing is installed
+into projects — the per-project footprint is the runtime `.goal-ledger/`
+directory the skills create during use, which is a **committed, git-tracked
+execution record** (never gitignore it). Project-level adapter install is an
+explicit opt-in (see the last section).
 
-## 1. Survey before writing
+Source repository: `https://github.com/jpbaking/goal-ledger`. If the user
+named a fork or tag, substitute it below.
 
-1. Confirm you are at the target project's root.
-2. If `.tmp-agent-scratch/MASTER-PLAN.md` exists with a plan status other than
-   `done`, STOP and report it — an unfinished legacy plan must be resumed,
-   finished, abandoned, or migrated before installing.
-3. Ask (or infer from the user's request) which harnesses to support:
-   Codex/Antigravity (`.agents` + `AGENTS.md`), Claude Code (`.claude`),
-   Gemini CLI (`GEMINI.md` + `.agents`), Cline (`AGENTS.md` + `.agents`).
-   Default: all.
-4. Check for same-named `goal-ledger*` or legacy `master-plan*` artifacts
-   under `.agents/`, `.claude/`, `.cline/`, `.clinerules/`,
-   `.claude/commands/`, and the user-global skill directories. Report
-   collisions; never delete unrelated or legacy files.
+## 1. Acquire the sources
 
-## 2. Install the skills
+Obtain the sources in a temporary directory (never inside a project):
+
+- `git clone --depth 1 https://github.com/jpbaking/goal-ledger <tmp>/goal-ledger`
+  (add `--branch <tag>` for a pinned tag), or
+- download and extract `https://github.com/jpbaking/goal-ledger/archive/refs/heads/main.zip`, or
+- `gh repo clone jpbaking/goal-ledger <tmp>/goal-ledger`.
+
+Copy from this staging directory below; delete it when done.
+
+## 2. Survey before writing
+
+1. If the current project has `.tmp-agent-scratch/MASTER-PLAN.md` with a plan
+   status other than `done`, STOP and report it — an unfinished legacy plan
+   must be resumed, finished, abandoned, or migrated before installing.
+2. Ask (or infer from the user's request) which harnesses to support: Codex,
+   Claude Code, Antigravity, Cline, Gemini CLI. Default: all.
+3. Check for same-named `goal-ledger*` or legacy `master-plan*` artifacts in
+   the global skill directories listed below and, if you are inside a
+   project, under its `.agents/`, `.claude/`, `.cline/`, `.clinerules/`, and
+   `.claude/commands/`. Report collisions; never delete unrelated or legacy
+   files. A project-level skill with the same name can shadow or duplicate
+   the global copy.
+
+## 3. Install the skills (byte-identical copies)
 
 For each skill `goal-ledger`, `goal-ledger-resume`, `goal-ledger-status`,
-`goal-ledger-abandon`, fetch the full directory from
-`skills/shared/<skill>/` (at minimum `SKILL.md`; `goal-ledger` also bundles
-`scripts/validate_goal_ledger.py`) and write byte-identical copies to:
+`goal-ledger-abandon`, copy the full directory from `skills/shared/<skill>/`
+(at minimum `SKILL.md`; `goal-ledger` also bundles
+`scripts/validate_goal_ledger.py`) to each selected harness's global skills
+directory:
 
-- `.agents/skills/<skill>/` — when Codex/Antigravity, Gemini, or Cline are
-  selected;
-- `.claude/skills/<skill>/` — when Claude Code is selected.
+| Harness | Destination |
+| --- | --- |
+| Codex (and Gemini CLI) | `~/.agents/skills/<skill>/` |
+| Claude Code | `~/.claude/skills/<skill>/` |
+| Antigravity | `~/.gemini/config/skills/<skill>/` |
+| Cline | `~/.cline/skills/<skill>/` |
+
+Cursor needs **no separate copy**: it natively discovers `~/.agents/skills/`
+(and `~/.claude/skills/` / `~/.codex/skills/` as compatibility paths). Do
+not install to `~/.cursor/skills/` — that would create a duplicate.
 
 Replace whole same-named skill directories so retired bundled resources
-cannot linger. Verify each skill's frontmatter `name` matches its directory.
+cannot linger. Verify each skill's frontmatter `name` matches its directory,
+and that all copies are byte-identical across harnesses.
 
-## 3. Install the rule
+## 4. Install the rule
 
-Fetch `rules/shared/goal-ledger.md` and write it to `.agents/rules/` (shared
-harnesses) and `.claude/rules/` (Claude Code). Never write to `.codex/rules`.
+The rule self-gates: its resume check and start triggers key off
+`.goal-ledger/` in the current project, so it is safe to load globally.
 
-## 4. Bridge files — merge, never overwrite
+1. Copy `rules/shared/goal-ledger.md` to `~/.agents/rules/goal-ledger.md`
+   (neutral shared location) and `~/.gemini/config/rules/goal-ledger.md`
+   (auto-loaded by Antigravity).
+2. Cline: copy it to `~/Cline/Rules/goal-ledger.md` on Linux, or
+   `~/Documents/Cline/Rules/goal-ledger.md` on macOS/Windows (if both exist,
+   use the populated one).
+3. Codex, Claude Code, and Gemini CLI load global guidance from user-owned
+   files — merge, never overwrite. Append this marker-guarded block once
+   (skip if the marker is present) to `~/.codex/AGENTS.md`,
+   `~/.claude/CLAUDE.md`, and — when Gemini CLI is selected —
+   `~/.gemini/GEMINI.md` (create any that are missing):
 
-For `AGENTS.md` (Codex/Antigravity/Cline) and `GEMINI.md` (Gemini CLI): if
-the file already mentions `.agents/rules/goal-ledger.md`, leave it. Otherwise
-create it if missing (`# Project rules` / `# Project context` heading) and
-append this section once, preserving existing content:
+   ```markdown
+   <!-- goal-ledger:global-rule -->
+   Read and follow `~/.agents/rules/goal-ledger.md`. In particular: at the
+   start of every primary-session task, if the project contains
+   `.goal-ledger/GOAL.md` with a `Goal status:` other than `completed` or
+   `abandoned`, use the `goal-ledger-resume` skill before unrelated work.
+   <!-- /goal-ledger:global-rule -->
+   ```
 
-> ## Goal Ledger
->
-> If `.agents/rules/goal-ledger.md` exists, read and follow it. Reusable
-> procedures live in `.agents/skills/`; use the matching skill when its
-> description applies. If the rule or skills are missing (fresh clone — the
-> installed adapters are gitignored), re-run the Goal Ledger installer from
-> https://github.com/jpbaking/goal-ledger to regenerate them.
+Cursor has no file-based global rules (User Rules are app settings). If
+the user works in Cursor, print the pointer block above and ask them to
+paste it into Cursor Settings → Rules once.
 
-Claude Code needs no `CLAUDE.md` bridge — it auto-discovers `.claude/rules/`.
-If `CLAUDE.md` already imports `@.claude/rules/goal-ledger.md`, warn that the
-import is redundant (and would dangle on a fresh clone); preserve the line.
+Never write to `~/.codex/rules` or any `.codex/rules` — that path holds
+command-execution policy, not guidance.
 
-## 5. Gitignore the generated adapters
+## 5. Validate and report
 
-Add this block to the project's `.gitignore` once (skip if the marker exists);
-never delete existing rules:
-
-```gitignore
-# Goal Ledger installer-managed agent adapters (generated; do not edit or commit)
-.agents/skills/goal-ledger/
-.claude/skills/goal-ledger/
-.agents/skills/goal-ledger-resume/
-.claude/skills/goal-ledger-resume/
-.agents/skills/goal-ledger-status/
-.claude/skills/goal-ledger-status/
-.agents/skills/goal-ledger-abandon/
-.claude/skills/goal-ledger-abandon/
-.agents/rules/goal-ledger.md
-.claude/rules/goal-ledger.md
-```
-
-Do NOT gitignore `AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, or — critically —
-the runtime `.goal-ledger/` directory: the ledger itself is a committed,
-git-tracked execution record. Only the installed rule/skill adapters are
-generated files. A fresh clone therefore lacks the adapters; the conditional
-bridge text degrades safely, and re-running this procedure (or `install.sh`)
-regenerates them.
-
-## 6. Validate and report
-
-1. When both `.agents` and `.claude` copies exist, verify each skill
-   directory pair is byte-identical.
-2. Verify every selected harness reaches the rule through exactly one path.
-3. Report every file created, changed, or intentionally left alone, plus
-   collisions and warnings from step 1.
-4. Tell the user: ask their agent to use the `goal-ledger` skill for
+1. Verify each installed skill directory is byte-identical across the
+   selected harness destinations and to the canonical source.
+2. Verify every selected harness reaches the rule through exactly one path
+   (auto-loaded global rule or one merged pointer block — not both for the
+   same harness).
+3. Remove the temporary staging directory.
+4. Report every file created, changed, or intentionally left alone, plus
+   collisions and warnings from step 2. Note the install is per-user and
+   per-machine.
+5. Tell the user: ask their agent to use the `goal-ledger` skill for
    multi-phase work (`goal-ledger-resume` for recovery/handoff,
-   `goal-ledger-status` for a read-only report, `goal-ledger-abandon` to stop
-   while preserving history).
+   `goal-ledger-status` for a read-only report, `goal-ledger-abandon` to
+   stop while preserving history). Remind them `.goal-ledger/` directories
+   are committed project data — never gitignored.
+
+## Project-level adapter install (opt-in only)
+
+Only on explicit user request: copy the four skill directories to the
+project's `.agents/skills/` and `.claude/skills/`, and the rule to
+`.agents/rules/goal-ledger.md` and `.claude/rules/goal-ledger.md`
+(byte-identical). Claude Code needs no `CLAUDE.md` bridge — it
+auto-discovers `.claude/rules/`. Whether the team commits or gitignores the
+adapters is the project's own policy — never touch the project's
+`.gitignore` yourself. Never gitignore `.goal-ledger/`; if existing ignore
+rules hide the adapters from a harness, report the exact pattern instead of
+changing it.

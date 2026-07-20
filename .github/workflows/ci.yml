@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   unix:
-    name: Unix shell, PowerShell 7, and validator (${{ matrix.os }})
+    name: Validator tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,24 +20,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Check POSIX shell
-        run: |
-          sh -n install.sh
-          if command -v shellcheck >/dev/null 2>&1; then shellcheck install.sh; fi
       - name: Run tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest discover -s tests -v
 
   windows:
-    name: Windows PowerShell installers and validator
+    name: Windows validator tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - name: Run Windows PowerShell 5.1 and PowerShell 7 tests
+      - name: Run tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -m unittest discover -s tests -v
