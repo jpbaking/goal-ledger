@@ -24,6 +24,17 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest discover -s tests -v
+      - name: Check Claude skill mirror is byte-identical
+        run: diff -r .agents/skills .claude/skills
+      - name: Check every SKILL.md is under agy's 24,000-byte limit
+        run: |
+          python3 - <<'PY'
+          import glob, os, sys
+          big = [(p, os.path.getsize(p)) for p in glob.glob(".agents/skills/*/SKILL.md") if os.path.getsize(p) >= 24000]
+          for p, n in big:
+              print(f"{p}: {n} bytes (limit 24000)")
+          sys.exit(1 if big else 0)
+          PY
 
   windows:
     name: Windows validator tests
